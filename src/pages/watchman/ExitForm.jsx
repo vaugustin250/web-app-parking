@@ -366,7 +366,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
       const durationMins = Math.floor((Date.now() - new Date(rec.entry_time).getTime()) / 60000)
       const { error: upErr } = await supabase.from('parking_records').update({
         exit_time: now, duration_minutes: durationMins,
-        amount_charged: amt, payment_method: mode, status: 'EXITED'
+        amount_charged: amt, payment_mode: mode, status: 'EXITED'
       }).eq('id', rec.id)
       if (upErr) throw upErr
 

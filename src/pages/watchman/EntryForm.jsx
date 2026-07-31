@@ -402,7 +402,7 @@ export default function EntryForm({ onBack, onSuccess }) {
         entry_time: entryTime,
         status: 'PARKED',
         amount_paid_at_entry: paidAmount,
-        payment_method_at_entry: payMode
+        entry_payment_mode: payMode
       })
       if (insErr) throw insErr
 
