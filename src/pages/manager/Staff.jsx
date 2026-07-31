@@ -2,10 +2,63 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 
+function printShiftReport(r, companyName) {
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shift Report</title>
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'Courier New',monospace; font-size:13px; color:#000; background:#fff; padding:16px; width:340px; margin:0 auto; }
+      .center { text-align:center; }
+      .logo { font-size:20px; font-weight:900; letter-spacing:-1px; }
+      .divider { border-top:1px dashed #666; margin:8px 0; }
+      .row { display:flex; justify-content:space-between; margin:4px 0; }
+      .label { color:#555; }
+      @media print { body { padding:0; width:100%; margin:0; } }
+    </style></head><body>
+      <div class="center logo">${companyName || 'Parking'}</div>
+      <div class="divider"></div>
+      <div class="center" style="font-size:11px;font-weight:bold;margin-bottom:6px">SHIFT REPORT</div>
+      <div class="divider"></div>
+      <div class="row"><span class="label">Watchman:</span><span>${r.watchman_name}</span></div>
+      <div class="row"><span class="label">Login:</span><span>${new Date(r.start_time).toLocaleString('en-IN')}</span></div>
+      <div class="row"><span class="label">Logout:</span><span>${new Date(r.end_time).toLocaleString('en-IN')}</span></div>
+      <div class="divider"></div>
+      <div class="row"><span class="label">Vehicles IN:</span><span>${r.vehicles_in}</span></div>
+      <div class="row"><span class="label">Vehicles OUT:</span><span>${r.vehicles_out}</span></div>
+      <div class="divider"></div>
+      <div class="row"><span class="label">Cash Collected:</span><span>₹${Number(r.revenue_cash).toFixed(2)}</span></div>
+      <div class="row"><span class="label">UPI Collected:</span><span>₹${Number(r.revenue_upi).toFixed(2)}</span></div>
+      <div class="divider"></div>
+      <div class="row"><span class="label" style="font-weight:bold;color:#000;">TOTAL REVENUE:</span><span style="font-weight:bold;font-size:16px;">₹${Number(r.revenue_total).toFixed(2)}</span></div>
+      <div class="divider"></div>
+      <div class="center" style="font-size:10px; margin-top:20px;">System Generated Report</div>
+      <script>window.onload = function() { window.print(); }<\/script>
+    </body></html>`
+
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
+  if (!win) {
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:none;opacity:0;'
+    document.body.appendChild(iframe)
+    iframe.src = url
+    iframe.onload = () => {
+      setTimeout(() => {
+        try { iframe.contentWindow.print() } catch {}
+        setTimeout(() => { URL.revokeObjectURL(url); try { document.body.removeChild(iframe) } catch {} }, 2500)
+      }, 300)
+    }
+  } else {
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  }
+}
+
 export default function Staff() {
-  const { tenantId, profile } = useAuth()
+  const { tenantId, profile, settings } = useAuth()
   const [staff, setStaff] = useState([])
+  const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingReports, setLoadingReports] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', role: 'WATCHMAN', password: '' })
   const [saving, setSaving] = useState(false)
@@ -16,7 +69,15 @@ export default function Staff() {
   async function load() {
     const { data } = await supabase.from('users').select('*').eq('tenant_id', tenantId).order('created_at')
     setStaff(data ?? [])
+    
+    // Also load recent shift reports
+    try {
+      const { data: repData } = await supabase.from('shift_reports').select('*').eq('tenant_id', tenantId).order('end_time', { ascending: false }).limit(30)
+      setReports(repData ?? [])
+    } catch (e) {}
+    
     setLoading(false)
+    setLoadingReports(false)
   }
 
   async function toggleActive(user) {
@@ -170,6 +231,43 @@ export default function Staff() {
             </table>
           </div>
         )}
+
+        {/* Shift Reports Table */}
+        <div style={{ marginTop: 40 }}>
+          <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16 }}>📋 Recent Shift Reports</div>
+          {loadingReports ? <div className="spinner" /> : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Watchman</th><th>Shift Period</th><th>Vehicles In</th><th>Checkouts</th><th>Cash</th><th>UPI</th><th>Total</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {reports.length === 0 ? (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No shift reports generated yet</td></tr>
+                  ) : reports.map(r => (
+                    <tr key={r.id}>
+                      <td style={{ fontWeight: 600 }}>{r.watchman_name}</td>
+                      <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                        <div><span style={{color: '#34d399'}}>IN:</span> {new Date(r.start_time).toLocaleString('en-IN', { hour12: true, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div><span style={{color: '#f87171'}}>OUT:</span> {new Date(r.end_time).toLocaleString('en-IN', { hour12: true, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                      </td>
+                      <td>{r.vehicles_in}</td>
+                      <td>{r.vehicles_out}</td>
+                      <td>₹{Number(r.revenue_cash).toFixed(2)}</td>
+                      <td>₹{Number(r.revenue_upi).toFixed(2)}</td>
+                      <td style={{ fontWeight: 800 }}>₹{Number(r.revenue_total).toFixed(2)}</td>
+                      <td>
+                        <button className="btn btn-secondary btn-sm" onClick={() => printShiftReport(r, settings?.company_name)}>
+                          🖨️ PDF
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </>
   )

@@ -13,7 +13,7 @@ export default defineConfig({
         short_name: 'VBills',
         description: 'Smart billing and parking management system',
         theme_color: '#1e1b4b',
-        background_color: '#f1f5f9',
+        background_color: '#1e1b4b',
         display: 'standalone',
         orientation: 'any',
         start_url: '/',

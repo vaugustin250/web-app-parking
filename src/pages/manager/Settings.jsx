@@ -4,15 +4,19 @@ import { supabase } from '../../lib/supabase'
 
 const VEHICLE_TYPES = ['2-Wheeler', '4-Wheeler', '4-Wheeler (SUV)', 'Heavy Vehicle', 'Auto Rickshaw']
 
-// Default rate rules (first 1hr flat, then per hour after)
-function defaultRules(firstHr, perHr) {
-  return [
-    { hours: 1, charge: firstHr, type: 'flat' },
-    { hours: null, charge: perHr, type: 'per_hour' },
-  ]
+// Default rate rules (new simple format)
+function defaultRules(baseRate, hourlyRate) {
+  return {
+    entry_fee: 0,
+    base_rate: baseRate,
+    base_hours: 1,
+    hourly_rate: hourlyRate,
+    daily_max: 0 // 0 means no cap
+  }
 }
 
 function defaultRateRules(s) {
+  // If they have old rate_rules, we might need to convert them, but if they are the old array type, we will overwrite them with this new default structure safely when they edit, or we can just try to parse it. For now, fallback to defaults based on top-level settings.
   return {
     '2-Wheeler': defaultRules(s?.rate_two_wheeler_first ?? 20, s?.rate_two_wheeler_per_hour ?? 10),
     '4-Wheeler': defaultRules(s?.rate_four_wheeler_first ?? 40, s?.rate_four_wheeler_per_hour ?? 20),
@@ -22,94 +26,71 @@ function defaultRateRules(s) {
   }
 }
 
-// ── Tier builder for one vehicle type ────────────────────────────────
-function TierBuilder({ vehicleType, tiers, currency, onChange }) {
-  function addTier() {
-    onChange([...tiers, { hours: 2, charge: 10, type: 'per_hour' }])
-  }
-  function removeTier(idx) {
-    onChange(tiers.filter((_, i) => i !== idx))
-  }
-  function updateTier(idx, field, val) {
-    onChange(tiers.map((t, i) => i === idx ? { ...t, [field]: val } : t))
+// ── Simple Rate Builder ────────────────────────────────
+function SimpleRateBuilder({ vehicleType, rules, currency, onChange }) {
+  // Ensure we have the new object structure. If it's an old array, fallback.
+  const r = Array.isArray(rules) ? defaultRules(20, 10) : rules
+
+  function update(field, val) {
+    onChange({ ...r, [field]: val })
   }
 
   return (
-    <div>
-      {tiers.map((tier, idx) => {
-        const isLast = idx === tiers.length - 1
-        return (
-          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-            {/* Connector label */}
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', width: 50, textAlign: 'right', flexShrink: 0 }}>
-              {idx === 0 ? 'First' : 'Then'}
-            </div>
-
-            {/* Hours input — null means "remaining" */}
-            {isLast ? (
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', padding: '9px 12px', background: 'var(--bg-secondary)', borderRadius: 8, flexShrink: 0 }}>
-                All remaining
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                <input
-                  type="number" min={0.5} max={24} step={0.5}
-                  value={tier.hours ?? ''}
-                  onChange={e => updateTier(idx, 'hours', parseFloat(e.target.value) || null)}
-                  style={{ width: 64, padding: '8px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, textAlign: 'center' }}
-                />
-                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>hr{(tier.hours ?? 1) !== 1 ? 's' : ''}</span>
-              </div>
-            )}
-
-            {/* Type selector */}
-            <select
-              value={tier.type}
-              onChange={e => updateTier(idx, 'type', e.target.value)}
-              style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, flexShrink: 0 }}
-            >
-              <option value="flat">Flat charge</option>
-              <option value="per_hour">Per hour</option>
-              {idx === 0 && <option value="entry_fee">Upfront Entry Fee</option>}
-            </select>
-
-            {/* Charge input */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{currency}</span>
-              <input
-                type="number" min={0} step={1}
-                value={tier.charge}
-                onChange={e => updateTier(idx, 'charge', parseFloat(e.target.value) || 0)}
-                style={{ width: 72, padding: '8px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, textAlign: 'center' }}
-              />
-            </div>
-
-            {/* Remove button — always keep at least 1 tier */}
-            {tiers.length > 1 && (
-              <button type="button" onClick={() => removeTier(idx)}
-                style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>
-                ✕
-              </button>
-            )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      
+      {/* Base Rate */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Base Fee (First X hours)</span>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
+            <input className="form-input" type="number" min={0} value={r.base_rate} onChange={e => update('base_rate', parseFloat(e.target.value) || 0)} style={{ flex: 1, fontSize: 16, fontWeight: 700 }} />
           </div>
-        )
-      })}
-
-      {/* Preview text */}
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 8, padding: '6px 10px', marginTop: 4, marginBottom: 8 }}>
-        {tiers.map((t, i) => {
-          const next = tiers[i + 1]
-          if (i === 0 && t.hours) return `First ${t.hours}h: ${currency}${t.charge} ${t.type === 'per_hour' ? '/hr' : 'flat'}`
-          if (!t.hours) return `After that: ${currency}${t.charge}${t.type === 'per_hour' ? '/hr' : ' flat cap'}`
-          return `Next ${t.hours}h: ${currency}${t.charge}${t.type === 'per_hour' ? '/hr' : ' flat'}`
-        }).join(' → ')}
+        </div>
+        
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Base Hours</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input className="form-input" type="number" min={0.5} step={0.5} value={r.base_hours} onChange={e => update('base_hours', parseFloat(e.target.value) || 1)} style={{ flex: 1 }} />
+            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>hours</span>
+          </div>
+        </div>
       </div>
 
-      {/* Cannot have more than one "all remaining" tier — limit to last */}
-      <button type="button" onClick={addTier}
-        style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand-primary)', background: 'rgba(99,102,241,0.08)', border: '1px dashed var(--brand-primary)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer' }}>
-        + Add Tier
-      </button>
+      {/* Hourly & Daily */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Per Hour Fee (After base hours)</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
+            <input className="form-input" type="number" min={0} value={r.hourly_rate} onChange={e => update('hourly_rate', parseFloat(e.target.value) || 0)} style={{ flex: 1, fontSize: 16, fontWeight: 700 }} />
+            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>/ hr</span>
+          </div>
+        </div>
+        
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Per Day Max Cap <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(0 = no limit)</span></label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
+            <input className="form-input" type="number" min={0} value={r.daily_max} onChange={e => update('daily_max', parseFloat(e.target.value) || 0)} style={{ flex: 1, fontSize: 16, fontWeight: 700 }} />
+            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>/ day</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Optional Upfront Entry Fee */}
+      <div style={{ paddingTop: 16, borderTop: '1px solid var(--border-color)' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Upfront Entry Fee <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional fixed fee collected at entry)</span></label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
+            <input className="form-input" type="number" min={0} value={r.entry_fee} onChange={e => update('entry_fee', parseFloat(e.target.value) || 0)} style={{ width: 120, fontSize: 16, fontWeight: 700 }} />
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }
@@ -243,18 +224,15 @@ export default function Settings() {
 
             {rateRules && (
               <div style={{ background: 'var(--bg-secondary)', borderRadius: 12, padding: '20px' }}>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16, color: 'var(--text-primary)' }}>
-                  {activeRateTab === '2-Wheeler' ? '🛵' : activeRateTab === 'Heavy Vehicle' ? '🚌' : activeRateTab === 'Auto Rickshaw' ? '🛺' : '🚗'} {activeRateTab} — Pricing Tiers
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, color: 'var(--text-primary)' }}>
+                  {activeRateTab === '2-Wheeler' ? '🛵' : activeRateTab === 'Heavy Vehicle' ? '🚌' : activeRateTab === 'Auto Rickshaw' ? '🛺' : '🚗'} {activeRateTab} Pricing
                 </div>
-                <TierBuilder
+                <SimpleRateBuilder
                   vehicleType={activeRateTab}
-                  tiers={rateRules[activeRateTab] ?? defaultRules(20, 10)}
+                  rules={rateRules[activeRateTab] ?? defaultRules(20, 10)}
                   currency={form.currency_symbol}
-                  onChange={tiers => setRulesForType(activeRateTab, tiers)}
+                  onChange={rules => setRulesForType(activeRateTab, rules)}
                 />
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12, padding: '8px 12px', background: 'rgba(99,102,241,0.05)', borderRadius: 8, borderLeft: '3px solid var(--brand-primary)' }}>
-                  💡 <b>Tip:</b> The <b>last tier</b> always applies to all remaining time. Set it as "All remaining" for open-ended pricing.
-                </div>
               </div>
             )}
           </div>

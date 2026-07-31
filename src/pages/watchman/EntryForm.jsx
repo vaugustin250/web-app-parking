@@ -1,77 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import PlateKeypad, { formatVehicleNo } from '../../components/PlateKeypad'
 
 const VEHICLE_TYPES = ['2-Wheeler', '4-Wheeler', '4-Wheeler (SUV)', 'Heavy Vehicle', 'Auto Rickshaw']
 
-// ── Indian vehicle number formatter ──────────────────────────────────
-function formatVehicleNo(raw) {
-  const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
-  let formatted = clean
-  // Progressive matching for typical Indian plate: AA 11 AA 1111
-  const m = clean.match(/^([A-Z]{1,2})(\d{1,2})?([A-Z]{1,3})?(\d{1,4})?$/)
-  if (m) {
-    formatted = m[1]
-    if (m[2]) formatted += ` ${m[2]}`
-    if (m[3]) formatted += ` ${m[3]}`
-    if (m[4]) formatted += ` ${m[4]}`
-  }
-  return formatted
-}
-
-// ── Number Plate Keypad ──────────────────────────────────────────────
-const ALPHA_ROWS = ['ABCDEFGHIJ', 'KLMNOPQRST', 'UVWXYZ']
-const NUM_ROW = '1234567890'
-
-function PlateKeypad({ value, onChange }) {
-  function tap(char) {
-    const raw = (value.replace(/\s/g, '') + char).toUpperCase().slice(0, 11)
-    onChange(formatVehicleNo(raw))
-  }
-  function del() {
-    const raw = value.replace(/\s/g, '').slice(0, -1)
-    onChange(raw ? formatVehicleNo(raw) : '')
-  }
-  function clear() { onChange('') }
-
-  const keyStyle = {
-    padding: '9px 0', width: '100%',
-    background: '#fff', border: '1.5px solid #e2e8f0',
-    borderRadius: 8, fontSize: 15, fontWeight: 700,
-    color: '#0f172a', cursor: 'pointer', transition: 'all 0.1s',
-    fontFamily: "'Space Grotesk', sans-serif"
-  }
-
-  return (
-    <div style={{ background: '#f1f5f9', borderRadius: 12, padding: 10, marginTop: 8, border: '1px solid #e2e8f0', width: '100%', boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, textAlign: 'center' }}>
-        Tap letters/numbers to enter plate
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '3px', marginBottom: '5px' }}>
-        {ALPHA_ROWS.join('').split('').map(c => (
-          <button key={c} style={keyStyle} onClick={() => tap(c)}
-            onMouseDown={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#6366f1' }}
-            onMouseUp={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0' }}
-            type="button">{c}</button>
-        ))}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '3px', marginBottom: '5px' }}>
-        {NUM_ROW.split('').map(c => (
-          <button key={c} style={{ ...keyStyle, background: '#e8eeff', borderColor: '#c7d2fe', color: '#3730a3' }}
-            onMouseDown={e => { e.currentTarget.style.background = '#c7d2fe' }}
-            onMouseUp={e => { e.currentTarget.style.background = '#e8eeff' }}
-            onClick={() => tap(c)} type="button">{c}</button>
-        ))}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
-        <button style={{ ...keyStyle, background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626', fontSize: 14 }}
-          onClick={del} type="button">⌫ DELETE</button>
-        <button style={{ ...keyStyle, background: '#f0fdf4', borderColor: '#bbf7d0', color: '#16a34a', fontSize: 14 }}
-          onClick={clear} type="button">CLEAR ALL</button>
-      </div>
-    </div>
-  )
-}
 
 function generateTicket() {
   const now = new Date()
@@ -244,6 +177,7 @@ export default function EntryForm({ onBack, onSuccess }) {
   const [zoneStats, setZoneStats] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showKeypad, setShowKeypad] = useState(true)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState('')
@@ -626,8 +560,10 @@ export default function EntryForm({ onBack, onSuccess }) {
                 <input
                   className="form-input form-input-xl"
                   value={vehicleNo}
-                  onChange={e => handleVehicleNoChange(e.target.value)}
+                  onChange={e => { setVehicleNo(e.target.value); setShowKeypad(true) }}
+                  onFocus={() => setShowKeypad(true)}
                   placeholder="MH 12 AB 1234"
+                  inputMode="none"
                   maxLength={13} autoFocus
                   style={{ flex: 1, textAlign: 'center', letterSpacing: '2px', fontWeight: 800, fontSize: 22 }}
                 />
@@ -636,7 +572,9 @@ export default function EntryForm({ onBack, onSuccess }) {
                   📷
                 </button>
               </div>
-              <PlateKeypad value={vehicleNo} onChange={v => setVehicleNo(v)} />
+              {showKeypad && (
+                <PlateKeypad value={vehicleNo} onChange={v => { setVehicleNo(v); handleVehicleNoChange(v); }} onAccept={() => setShowKeypad(false)} />
+              )}
             </div>
 
             {/* Vehicle type + zone/slot */}
@@ -656,7 +594,7 @@ export default function EntryForm({ onBack, onSuccess }) {
                   </button>
                 </div>
               </div>
-              {zonesEnabled && zones.length > 0 ? (
+              {zonesEnabled && zones.length > 0 && (
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Zone</label>
                   <select className="form-select" value={zoneId} onChange={e => setZoneId(e.target.value)}>
@@ -668,11 +606,6 @@ export default function EntryForm({ onBack, onSuccess }) {
                     })}
                   </select>
                   {zoneFull && <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>⚠️ Zone full!</div>}
-                </div>
-              ) : (
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Slot No <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(opt.)</span></label>
-                  <input className="form-input" value={slotNo} onChange={e => setSlotNo(e.target.value)} placeholder="e.g. A-12" />
                 </div>
               )}
             </div>

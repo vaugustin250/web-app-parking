@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import PlateKeypad from '../../components/PlateKeypad'
 
 // ── Fee calculator — supports dynamic rate_rules JSON ────────────────
 function calcFee(vehicleType, entryTime, settings) {
@@ -12,26 +13,58 @@ function calcFee(vehicleType, entryTime, settings) {
   // Try dynamic rate_rules first
   const rules = settings.rate_rules
   if (rules) {
-    const typeRules = rules[vehicleType] || rules['4-Wheeler'] || []
-    if (typeRules.length > 0) {
-      let remaining = minutes
+    const r = rules[vehicleType] || rules['4-Wheeler']
+    if (r && !Array.isArray(r)) { // New simple format
       let total = 0
-      for (const rule of typeRules) {
-        const ruleMins = rule.hours ? rule.hours * 60 : null
-        if (ruleMins === null) {
-          // Last rule — per hour for all remaining
-          total += rule.per_hour ? Math.ceil(remaining / 60) * rule.charge : rule.charge
-          break
-        }
-        const used = Math.min(remaining, ruleMins)
-        if (rule.per_hour) {
-          total += Math.ceil(used / 60) * rule.charge
-        } else {
-          total += rule.charge
-        }
-        remaining -= used
-        if (remaining <= 0) break
+      
+      const days = Math.floor(minutes / (24 * 60))
+      let remainderMins = minutes % (24 * 60)
+      
+      // Calculate charge for the remainder of the day
+      let dayCharge = 0
+      if (remainderMins > 0) {
+         let minsToCharge = remainderMins
+         let charge = 0
+         
+         // Base rate
+         if (r.base_hours > 0) {
+           charge += r.base_rate
+           minsToCharge -= (r.base_hours * 60)
+         }
+         
+         // Hourly rate for remaining minutes
+         if (minsToCharge > 0) {
+           charge += Math.ceil(minsToCharge / 60) * r.hourly_rate
+         }
+         
+         // Apply daily max if set
+         if (r.daily_max > 0) {
+           charge = Math.min(charge, r.daily_max)
+         }
+         
+         dayCharge = charge
       }
+      
+      // Total = (Full days * Daily Max) + Day Charge
+      // If Daily Max is 0, we just charge the base rate + hourly rate for the full duration
+      if (days > 0) {
+        if (r.daily_max > 0) {
+          total += days * r.daily_max
+        } else {
+          // If no daily max, just calculate straight through
+          let totalMins = minutes
+          total += r.base_rate
+          totalMins -= (r.base_hours * 60)
+          if (totalMins > 0) {
+            total += Math.ceil(totalMins / 60) * r.hourly_rate
+          }
+          dayCharge = 0 // Already calculated above
+        }
+      }
+      
+      total += dayCharge
+      
+      // Calculate GST
       const gst = total * ((settings.gst_percent ?? 0) / 100)
       return Math.round((total + gst) * 100) / 100
     }
@@ -164,6 +197,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [successToast, setSuccessToast] = useState(null)
+  const [showKeypad, setShowKeypad] = useState(true)
   // In-form QR scanner state
   const [scanningQr, setScanningQr] = useState(false)
   const qrVideoRef = useRef(null)
@@ -413,18 +447,25 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
 
           {!record ? (
             <>
-              {/* Search bar */}
               <div style={{ position: 'relative', marginBottom: 12 }}>
                 <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 18, color: 'var(--text-muted)' }}>🔍</span>
                 <input
                   className="form-input"
                   value={search}
-                  onChange={e => setSearch(e.target.value.toUpperCase())}
+                  onChange={e => { setSearch(e.target.value.toUpperCase()); setShowKeypad(true); }}
+                  onFocus={() => setShowKeypad(true)}
                   placeholder="Search by vehicle no, ticket, driver…"
+                  inputMode="none"
                   style={{ paddingLeft: 44, fontSize: 16, fontWeight: 600 }}
                   autoFocus
                 />
               </div>
+
+              {showKeypad && (
+                <div style={{ marginBottom: 16 }}>
+                  <PlateKeypad value={search} onChange={setSearch} onAccept={() => setShowKeypad(false)} />
+                </div>
+              )}
 
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
                 {listLoading ? 'Loading...' : `${filtered.length} vehicle${filtered.length !== 1 ? 's' : ''} inside — tap to select`}
@@ -437,7 +478,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
                   {search ? `No vehicles matching "${search}"` : 'No vehicles currently parked'}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 460px)', overflowY: 'auto' }}>
                   {filtered.map(r => {
                     const mins = Math.floor((Date.now() - new Date(r.entry_time).getTime()) / 60000)
                     const h = Math.floor(mins / 60), m = mins % 60

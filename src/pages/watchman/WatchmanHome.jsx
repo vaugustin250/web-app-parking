@@ -14,6 +14,12 @@ export default function WatchmanHome() {
   const qrVideoRef = useRef(null)
   const qrStreamRef = useRef(null)
 
+  const [shiftStart, setShiftStart] = useState(() => {
+    let t = localStorage.getItem('watchman_shift_start')
+    if (!t) { t = new Date().toISOString(); localStorage.setItem('watchman_shift_start', t) }
+    return t
+  })
+
   useEffect(() => {
     if (!tenantId) return
     loadStats()
@@ -36,10 +42,101 @@ export default function WatchmanHome() {
 
   const occupancyPct = Math.round((stats.parked / stats.total) * 100)
 
+  async function generateAndPrintShiftReport() {
+    const now = new Date().toISOString()
+    
+    // Fetch entries since login
+    const { count: entriesCount } = await supabase.from('parking_records').select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId).gte('entry_time', shiftStart)
+    
+    // Fetch exits/payments done by THIS watchman since login
+    const { data: payments } = await supabase.from('payments').select('amount, method')
+      .eq('tenant_id', tenantId).gte('settled_at', shiftStart).eq('collected_by', profile?.full_name)
+      
+    const { count: exitsCount } = await supabase.from('parking_records').select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId).eq('status', 'EXITED').gte('exit_time', shiftStart)
+
+    let cash = 0, upi = 0, total = 0
+    if (payments) {
+      payments.forEach(p => {
+        if (p.method === 'CASH') cash += p.amount
+        if (p.method === 'UPI') upi += p.amount
+        total += p.amount
+      })
+    }
+    
+    const shiftStats = { entries: entriesCount || 0, exits: exitsCount || 0, cash, upi, total }
+    const currency = settings?.currency_symbol ?? '₹'
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shift Report</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Courier New',monospace; font-size:13px; color:#000; background:#fff; padding:16px; width:340px; }
+        .center { text-align:center; }
+        .logo { font-size:20px; font-weight:900; margin-bottom:4px; }
+        .divider { border-top:1px dashed #666; margin:8px 0; }
+        .row { display:flex; justify-content:space-between; margin:4px 0; }
+        .label { color:#555; }
+        .bold { font-weight:900; }
+      </style></head><body>
+        <div class="center logo">${settings?.company_name ?? 'VBills'}</div>
+        <div class="center bold" style="font-size:14px; margin-bottom:8px">SHIFT REPORT</div>
+        <div class="divider"></div>
+        <div class="row"><span class="label">Watchman:</span><span class="bold">${profile?.full_name}</span></div>
+        <div class="row"><span class="label">Login:</span><span>${new Date(shiftStart).toLocaleString('en-IN', { hour12: true, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+        <div class="row"><span class="label">Logout:</span><span>${new Date(now).toLocaleString('en-IN', { hour12: true, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+        <div class="divider"></div>
+        <div class="center bold">ACTIVITY</div>
+        <div class="row"><span class="label">Total Entries:</span><span class="bold">${shiftStats.entries}</span></div>
+        <div class="row"><span class="label">Checkouts Done:</span><span class="bold">${shiftStats.exits}</span></div>
+        <div class="divider"></div>
+        <div class="center bold">REVENUE COLLECTED</div>
+        <div class="row"><span class="label">Cash:</span><span>${currency}${shiftStats.cash.toFixed(2)}</span></div>
+        <div class="row"><span class="label">UPI:</span><span>${currency}${shiftStats.upi.toFixed(2)}</span></div>
+        <div class="row" style="font-size:16px; margin-top:8px; border-top:2px solid #000; padding-top:4px"><span class="label">TOTAL:</span><span class="bold">${currency}${shiftStats.total.toFixed(2)}</span></div>
+        <div class="divider"></div>
+        <div class="center" style="font-size:10px; margin-top:16px">Generated automatically at sign out</div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body></html>`
+
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (!win) {
+      const iframe = document.createElement('iframe')
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:none;opacity:0;'
+      document.body.appendChild(iframe)
+      iframe.src = url
+      iframe.onload = () => {
+        setTimeout(() => {
+          try { iframe.contentWindow.print() } catch {}
+          setTimeout(() => { URL.revokeObjectURL(url); try { document.body.removeChild(iframe) } catch {} }, 2500)
+        }, 300)
+      }
+    }
+
+    try {
+      await supabase.from('shift_reports').insert({
+        tenant_id: tenantId,
+        watchman_name: profile?.full_name,
+        start_time: shiftStart,
+        end_time: now,
+        vehicles_in: shiftStats.entries,
+        vehicles_out: shiftStats.exits,
+        revenue_cash: shiftStats.cash,
+        revenue_upi: shiftStats.upi,
+        revenue_total: shiftStats.total
+      })
+    } catch (e) { console.error(e) }
+    
+    localStorage.removeItem('watchman_shift_start')
+  }
+
   async function handleSignOut() {
     if (stats.parked > 0) {
       setShowSignOutConfirm(true)
     } else {
+      await generateAndPrintShiftReport()
       await signOut()
     }
   }
@@ -102,7 +199,7 @@ export default function WatchmanHome() {
             style={{ flex: 1, background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
             Cancel
           </button>
-          <button onClick={async () => { setShowSignOutConfirm(false); await signOut() }}
+          <button onClick={async () => { setShowSignOutConfirm(false); await generateAndPrintShiftReport(); await signOut() }}
             style={{ flex: 1, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
             Sign Out
           </button>
@@ -193,10 +290,6 @@ export default function WatchmanHome() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <button onClick={startQrScan} title="Scan exit QR" style={{
-            background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)',
-            color: '#a5b4fc', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
-          }}>📷 Scan QR</button>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{profile?.full_name?.split(' ')[0]}</div>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>Watchman</div>
