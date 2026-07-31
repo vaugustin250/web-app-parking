@@ -632,13 +632,8 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
         {/* Right: payment panel */}
         <div className="watchman-form-panel">
           {!record ? (
-            <div style={{ textAlign: 'center', paddingTop: 60 }}>
-              <div style={{ fontSize: 56, marginBottom: 16 }}>📷</div>
-              <div style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 16, fontWeight: 600 }}>Scan QR or search</div>
-              <button onClick={startInFormQr} style={{
-                background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: '#fff', border: 'none',
-                borderRadius: 14, padding: '14px 24px', fontSize: 16, fontWeight: 700, cursor: 'pointer', width: '100%'
-              }}>📷 Scan Entry QR</button>
+            <div style={{ textAlign: 'center', paddingTop: 40, color: 'var(--text-muted)', fontSize: 14 }}>
+              Select a vehicle from the list to process exit.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>

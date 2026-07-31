@@ -51,7 +51,7 @@ export default function PlateKeypad({ value, onChange, onAccept }) {
   function clear() { onChange('') }
 
   const keyStyle = {
-    width: '100%', height: '100%', minHeight: '48px',
+    width: '100%', height: '100%', minHeight: '32px',
     background: '#fff', border: '1.5px solid #e2e8f0',
     borderRadius: 8, fontSize: 18, fontWeight: 700,
     color: '#0f172a', cursor: 'pointer', transition: 'all 0.1s',

@@ -555,9 +555,9 @@ export default function EntryForm({ onBack, onSuccess }) {
       </div>
 
 
-      <div className="watchman-form-body" style={{ gridTemplateColumns: showRightPanel ? undefined : '1fr' }}>
-        <div className="watchman-form-main" style={{ borderRight: showRightPanel ? undefined : 'none', display: 'flex', flexDirection: 'column' }}>
-          {error && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{error}</div>}
+      <div className="watchman-form-body" style={{ gridTemplateColumns: showRightPanel ? undefined : '1fr', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div className="watchman-form-main" style={{ borderRight: showRightPanel ? undefined : 'none', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', padding: '16px' }}>
+          {error && <div className="alert alert-danger" style={{ marginBottom: 12, flexShrink: 0 }}>{error}</div>}
 
           {/* Pass banner */}
           {passInfo && (
@@ -573,9 +573,9 @@ export default function EntryForm({ onBack, onSuccess }) {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             {/* Vehicle number */}
-            <div className="form-group" style={{ marginBottom: 8 }}>
+            <div className="form-group" style={{ marginBottom: showKeypad ? 0 : 8, display: 'flex', flexDirection: 'column', flex: showKeypad ? 1 : 'none' }}>
               <label className="form-label">Vehicle Number *</label>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 6, flexShrink: 0 }}>
                 <input
                   className="form-input form-input-xl"
                   value={vehicleNo}
@@ -592,7 +592,9 @@ export default function EntryForm({ onBack, onSuccess }) {
                 </button>
               </div>
               {showKeypad && (
-                <PlateKeypad value={vehicleNo} onChange={v => { setVehicleNo(v); handleVehicleNoChange(v); }} onAccept={() => setShowKeypad(false)} />
+                <div style={{ flex: 1, display: 'flex', overflow: 'hidden', marginTop: 4 }}>
+                  <PlateKeypad value={vehicleNo} onChange={v => { setVehicleNo(v); handleVehicleNoChange(v); }} onAccept={() => setShowKeypad(false)} />
+                </div>
               )}
             </div>
 
@@ -643,7 +645,7 @@ export default function EntryForm({ onBack, onSuccess }) {
             )}
 
             <div style={{ marginTop: 'auto', paddingTop: 10 }}>
-              <button type="submit" className="btn btn-success btn-full btn-lg" disabled={loading || zoneFull} style={{ fontSize: 18, padding: '16px' }}>
+              <button type="submit" className="btn btn-success btn-full btn-lg" disabled={loading || zoneFull} style={{ fontSize: 18, padding: '16px', minHeight: '56px' }}>
                 {loading ? '⏳ Registering...' : passInfo ? '🎫 Register PASS Entry' : '✅ Register Entry'}
               </button>
             </div>
