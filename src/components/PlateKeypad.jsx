@@ -51,22 +51,23 @@ export default function PlateKeypad({ value, onChange, onAccept }) {
   function clear() { onChange('') }
 
   const keyStyle = {
-    padding: '12px 0', width: '100%',
+    width: '100%', height: '100%', minHeight: '48px',
     background: '#fff', border: '1.5px solid #e2e8f0',
-    borderRadius: 8, fontSize: 16, fontWeight: 700,
+    borderRadius: 8, fontSize: 18, fontWeight: 700,
     color: '#0f172a', cursor: 'pointer', transition: 'all 0.1s',
     fontFamily: "'Space Grotesk', sans-serif",
-    userSelect: 'none'
+    userSelect: 'none',
+    display: 'flex', alignItems: 'center', justifyContent: 'center'
   }
 
   return (
-    <div style={{ background: '#f1f5f9', borderRadius: 12, padding: 10, marginTop: 8, border: '1px solid #e2e8f0', width: '100%', boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, textAlign: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', background: '#f1f5f9', borderRadius: 12, padding: '10px', marginTop: 8, border: '1px solid #e2e8f0', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, textAlign: 'center', flexShrink: 0 }}>
         {expectedType === 'ALPHA' ? 'Tap LETTERS' : expectedType === 'NUM' ? 'Tap NUMBERS' : 'Tap LETTERS or NUMBERS'}
       </div>
       
       {(expectedType === 'ALPHA' || expectedType === 'ALPHANUM') && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '4px', marginBottom: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '4px', marginBottom: '8px', flex: expectedType === 'ALPHANUM' ? 1.5 : 3 }}>
           {ALPHA_ROWS.join('').split('').map(c => (
             <button key={c} style={keyStyle} onClick={() => tap(c)}
               onMouseDown={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#6366f1' }}
@@ -79,9 +80,9 @@ export default function PlateKeypad({ value, onChange, onAccept }) {
       )}
       
       {(expectedType === 'NUM' || expectedType === 'ALPHANUM') && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '8px', flex: expectedType === 'ALPHANUM' ? 1 : 3 }}>
           {NUM_ROW.split('').map(c => (
-            <button key={c} style={{ ...keyStyle, padding: '16px 0', fontSize: 20, background: '#e8eeff', borderColor: '#c7d2fe', color: '#3730a3' }}
+            <button key={c} style={{ ...keyStyle, fontSize: 24, background: '#e8eeff', borderColor: '#c7d2fe', color: '#3730a3' }}
               onMouseDown={e => { e.currentTarget.style.background = '#c7d2fe' }}
               onMouseUp={e => { e.currentTarget.style.background = '#e8eeff' }}
               onTouchStart={e => { e.currentTarget.style.background = '#c7d2fe' }}
@@ -91,14 +92,14 @@ export default function PlateKeypad({ value, onChange, onAccept }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: onAccept ? '1fr 1fr 1fr' : '1fr 1fr', gap: '6px' }}>
-        <button style={{ ...keyStyle, background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626', fontSize: 14 }}
+      <div style={{ display: 'grid', gridTemplateColumns: onAccept ? '1fr 1fr 1fr' : '1fr 1fr', gap: '6px', flexShrink: 0, height: '54px' }}>
+        <button style={{ ...keyStyle, background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626', fontSize: 16 }}
           onClick={del} type="button">⌫ DEL</button>
-        <button style={{ ...keyStyle, background: '#f0fdf4', borderColor: '#bbf7d0', color: '#16a34a', fontSize: 14 }}
+        <button style={{ ...keyStyle, background: '#f0fdf4', borderColor: '#bbf7d0', color: '#16a34a', fontSize: 16 }}
           onClick={clear} type="button">CLEAR</button>
         {onAccept && (
-          <button style={{ ...keyStyle, background: '#22c55e', borderColor: '#16a34a', color: '#fff', fontSize: 14 }}
-            onClick={() => onAccept()} type="button">✅ TICK</button>
+          <button style={{ ...keyStyle, background: '#22c55e', borderColor: '#16a34a', color: '#fff', fontSize: 16 }}
+            onClick={onAccept} type="button">✅ TICK</button>
         )}
       </div>
     </div>

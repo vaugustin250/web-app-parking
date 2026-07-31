@@ -463,14 +463,14 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
         </button>
       </div>
 
-      <div className="watchman-form-body">
+      <div className="watchman-form-body" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Left: vehicle list + bill */}
-        <div className="watchman-form-main">
-          {error && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{error}</div>}
+        <div className="watchman-form-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px' }}>
+          {error && <div className="alert alert-danger" style={{ marginBottom: 12, flexShrink: 0 }}>{error}</div>}
 
           {!record ? (
             <>
-              <div style={{ position: 'relative', marginBottom: 12 }}>
+              <div style={{ position: 'relative', marginBottom: 12, flexShrink: 0 }}>
                 <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 20, color: 'var(--text-muted)' }}>🔍</span>
                 <input
                   className="form-input form-input-xl"
@@ -501,7 +501,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
                       {search ? `No vehicles matching "${search}"` : 'No vehicles currently parked'}
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, overflowY: 'auto', paddingBottom: 16 }}>
                       {filtered.map(r => {
                         const mins = Math.floor((Date.now() - new Date(r.entry_time).getTime()) / 60000)
                         const h = Math.floor(mins / 60), m = mins % 60
