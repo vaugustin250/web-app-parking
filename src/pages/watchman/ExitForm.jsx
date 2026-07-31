@@ -241,8 +241,12 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
 
   const filtered = parkedList.filter(r => {
     const q = search.trim().toUpperCase()
+    const qNoSpaces = q.replace(/\s/g, '')
     if (!q) return true
-    return r.vehicle_number?.toUpperCase().includes(q) || r.ticket_no?.toUpperCase().includes(q) || r.driver_name?.toUpperCase().includes(q) || r.slot_no?.toUpperCase().includes(q)
+    return r.vehicle_number?.replace(/\s/g, '').toUpperCase().includes(qNoSpaces) || 
+           r.ticket_no?.toUpperCase().includes(q) || 
+           r.driver_name?.toUpperCase().includes(q) || 
+           r.slot_no?.toUpperCase().includes(q)
   })
 
   async function selectRecord(r) { 
