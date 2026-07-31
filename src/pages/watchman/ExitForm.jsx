@@ -427,17 +427,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
           <div className="watchman-form-title" style={{ color: '#f87171' }}>🔴 Vehicle Exit</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Look up vehicle & collect payment</div>
         </div>
-        {/* QR Scan button prominently in header */}
-        <button
-          onClick={startInFormQr}
-          style={{
-            background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: '#fff', border: 'none',
-            borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto'
-          }}
-        >
-          📷 Scan QR
-        </button>
+
       </div>
 
       <div className="watchman-form-body">

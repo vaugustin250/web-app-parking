@@ -216,7 +216,7 @@ export default function WatchmanHome() {
 
         {/* Compact top bar */}
         <div className="watchman-topbar" style={{ padding: '8px 16px' }}>
-          <div className="watchman-brand" style={{ display: 'flex', alignItems: 'center' }}><img src="/logo.png" alt="VBills" style={{ height: 70, objectFit: 'contain', transform: 'scale(2.2)', filter: 'brightness(0) invert(1)' }} /></div>
+          <div className="watchman-brand" style={{ display: 'flex', alignItems: 'center' }}><img src="/logo.png" alt="VBills" style={{ height: 70, objectFit: 'contain', transform: 'scale(2.2)' }} /></div>
           <div style={{ flex: 1 }} />
           <button onClick={goHome} style={{
             background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
@@ -274,7 +274,7 @@ export default function WatchmanHome() {
 
       {/* Top bar */}
       <div className="watchman-topbar">
-        <div className="watchman-brand" style={{ display: 'flex', alignItems: 'center' }}><img src="/logo.png" alt="VBills" style={{ height: 100, objectFit: 'contain', transform: 'scale(2.2)', filter: 'brightness(0) invert(1)' }} /></div>
+        <div className="watchman-brand" style={{ display: 'flex', alignItems: 'center' }}><img src="/logo.png" alt="VBills" style={{ height: 100, objectFit: 'contain', transform: 'scale(2.2)' }} /></div>
         <div className="watchman-occupancy-center" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
             {stats.parked} / {stats.total} slots occupied
