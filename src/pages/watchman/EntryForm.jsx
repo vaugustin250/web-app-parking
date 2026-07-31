@@ -451,7 +451,7 @@ export default function EntryForm({ onBack, onSuccess }) {
         passInfo: passInfo || null,
         amountPaidAtEntry: paidAmount,
         entryPaymentMode: payMode
-      }).catch(() => {})
+      })
 
       // Show 1.5-second toast, then reset all fields for next vehicle
       setSuccessToast({ ticket, vehicleNo: num })
