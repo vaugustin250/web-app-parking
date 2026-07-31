@@ -448,70 +448,72 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
           {!record ? (
             <>
               <div style={{ position: 'relative', marginBottom: 12 }}>
-                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 18, color: 'var(--text-muted)' }}>🔍</span>
+                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 20, color: 'var(--text-muted)' }}>🔍</span>
                 <input
-                  className="form-input"
+                  className="form-input form-input-xl"
                   value={search}
                   onChange={e => { setSearch(e.target.value.toUpperCase()); setShowKeypad(true); }}
                   onFocus={() => setShowKeypad(true)}
-                  placeholder="Search by vehicle no, ticket, driver…"
+                  placeholder="Search vehicle no..."
                   inputMode="none"
-                  style={{ paddingLeft: 44, fontSize: 16, fontWeight: 600 }}
+                  style={{ padding: '16px 16px 16px 52px', fontSize: 22, fontWeight: 800, letterSpacing: '1px' }}
                   autoFocus
                 />
               </div>
 
-              {showKeypad && (
-                <div style={{ marginBottom: 16 }}>
+              {showKeypad ? (
+                <div style={{ marginBottom: 16, flex: 1 }}>
                   <PlateKeypad value={search} onChange={setSearch} onAccept={() => setShowKeypad(false)} />
                 </div>
-              )}
-
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                {listLoading ? 'Loading...' : `${filtered.length} vehicle${filtered.length !== 1 ? 's' : ''} inside — tap to select`}
-              </div>
-
-              {listLoading ? (
-                <div style={{ textAlign: 'center', padding: 40 }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
-              ) : filtered.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                  {search ? `No vehicles matching "${search}"` : 'No vehicles currently parked'}
-                </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 460px)', overflowY: 'auto' }}>
-                  {filtered.map(r => {
-                    const mins = Math.floor((Date.now() - new Date(r.entry_time).getTime()) / 60000)
-                    const h = Math.floor(mins / 60), m = mins % 60
-                    const duration = h > 0 ? `${h}h ${m}m` : `${m}m`
-                    const isOvernight = (Date.now() - new Date(r.entry_time).getTime()) > 12 * 60 * 60 * 1000
-                    return (
-                      <button key={r.id} onClick={() => selectRecord(r)} style={{
-                        display: 'flex', alignItems: 'center', gap: 14,
-                        background: '#fff', border: `2px solid ${isOvernight ? '#fca5a5' : '#e2e8f0'}`,
-                        borderRadius: 14, padding: '12px 16px', cursor: 'pointer',
-                        textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-                      }}>
-                        <div style={{ width: 50, height: 50, borderRadius: 12, flexShrink: 0, background: isOvernight ? '#fee2e2' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
-                          {r.vehicle_type === '2-Wheeler' ? '🛵' : r.vehicle_type === 'Heavy Vehicle' ? '🚌' : '🚗'}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: 1, color: '#0f172a' }}>{r.vehicle_number}</div>
-                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                            {r.vehicle_type} · {r.ticket_no}{r.slot_no ? ` · Slot ${r.slot_no}` : ''}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 15, color: isOvernight ? '#dc2626' : '#4f46e5' }}>{duration}</div>
-                          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                            {new Date(r.entry_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                          </div>
-                          {isOvernight && <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 700 }}>OVERNIGHT</div>}
-                        </div>
-                        <span style={{ color: '#6366f1', fontSize: 20 }}>›</span>
-                      </button>
-                    )
-                  })}
-                </div>
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                    {listLoading ? 'Loading...' : `${filtered.length} vehicle${filtered.length !== 1 ? 's' : ''} inside — tap to select`}
+                  </div>
+
+                  {listLoading ? (
+                    <div style={{ textAlign: 'center', padding: 40 }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
+                  ) : filtered.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                      {search ? `No vehicles matching "${search}"` : 'No vehicles currently parked'}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                      {filtered.map(r => {
+                        const mins = Math.floor((Date.now() - new Date(r.entry_time).getTime()) / 60000)
+                        const h = Math.floor(mins / 60), m = mins % 60
+                        const duration = h > 0 ? `${h}h ${m}m` : `${m}m`
+                        const isOvernight = (Date.now() - new Date(r.entry_time).getTime()) > 12 * 60 * 60 * 1000
+                        return (
+                          <button key={r.id} onClick={() => selectRecord(r)} style={{
+                            display: 'flex', alignItems: 'center', gap: 14,
+                            background: '#fff', border: `2px solid ${isOvernight ? '#fca5a5' : '#e2e8f0'}`,
+                            borderRadius: 14, padding: '12px 16px', cursor: 'pointer',
+                            textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                          }}>
+                            <div style={{ width: 50, height: 50, borderRadius: 12, flexShrink: 0, background: isOvernight ? '#fee2e2' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
+                              {r.vehicle_type === '2-Wheeler' ? '🛵' : r.vehicle_type === 'Heavy Vehicle' ? '🚌' : '🚗'}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: 1, color: '#0f172a' }}>{r.vehicle_number}</div>
+                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                {r.vehicle_type} · {r.ticket_no}{r.slot_no ? ` · Slot ${r.slot_no}` : ''}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: 15, color: isOvernight ? '#dc2626' : '#4f46e5' }}>{duration}</div>
+                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                {new Date(r.entry_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </div>
+                              {isOvernight && <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 700 }}>OVERNIGHT</div>}
+                            </div>
+                            <span style={{ color: '#6366f1', fontSize: 20 }}>›</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : (
