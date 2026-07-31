@@ -44,7 +44,7 @@ export default function SuperAdminLayout() {
       {/* ── Sidebar ── */}
       <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
-          <img src="/logo.png" alt="VBills Logo" style={{ height: 80, objectFit: 'contain', marginBottom: 0, transform: 'scale(2.2)' }} />
+          <img src="/logo.png" alt="VBills Logo" style={{ height: 80, objectFit: 'contain', marginBottom: 0, transform: 'scale(2.2)', filter: 'brightness(0) invert(1)' }} />
           <div className="sidebar-brand-sub">Super Admin Panel</div>
         </div>
 
