@@ -162,23 +162,42 @@ function printReceipt({ record, amount, payMode, settings, passData }) {
       <script>window.onload = function() { window.print(); }<\/script>
     </body></html>`
 
-  const blob = new Blob([html], { type: 'text/html' })
-  const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank')
-  if (!win) {
-    const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:none;opacity:0;'
-    document.body.appendChild(iframe)
-    iframe.src = url
-    iframe.onload = () => {
-      setTimeout(() => {
-        try { iframe.contentWindow.print() } catch {}
-        setTimeout(() => { URL.revokeObjectURL(url); try { document.body.removeChild(iframe) } catch {} }, 2500)
-      }, 300)
+  const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i)
+  const bodyMatch = html.match(/<body>([\s\S]*?)<script>/i) || html.match(/<body>([\s\S]*?)<\/body>/i)
+  
+  const styles = styleMatch ? styleMatch[1] : ''
+  const bodyHtml = bodyMatch ? bodyMatch[1] : html
+
+  const printDiv = document.createElement('div')
+  printDiv.id = 'pwa-print-container'
+  printDiv.innerHTML = bodyHtml
+  
+  const styleEl = document.createElement('style')
+  styleEl.id = 'pwa-print-style'
+  styleEl.innerHTML = `
+    @media print {
+      body > :not(#pwa-print-container) { display: none !important; }
+      #pwa-print-container { display: block !important; position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 16px; background: #fff; z-index: 99999; color: #000; }
+      ${styles}
     }
-  } else {
-    setTimeout(() => URL.revokeObjectURL(url), 10000)
-  }
+    @media screen {
+      #pwa-print-container { display: none; }
+    }
+  `
+  
+  document.head.appendChild(styleEl)
+  document.body.appendChild(printDiv)
+  
+  setTimeout(() => {
+    window.print()
+    const cleanup = () => {
+      if (document.body.contains(printDiv)) document.body.removeChild(printDiv)
+      if (document.head.contains(styleEl)) document.head.removeChild(styleEl)
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    setTimeout(cleanup, 10000)
+  }, 250)
 }
 
 export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
