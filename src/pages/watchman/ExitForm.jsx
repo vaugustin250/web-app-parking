@@ -418,7 +418,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
 
       if (amt > 0) {
         const paymentPayload = {
-          id: crypto.randomUUID(),
+          id: crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); }),
           tenant_id: tenantId, ticket_no: rec.ticket_no,
           amount: amt, method: mode, status: 'COMPLETED',
           collected_by: profile?.full_name, settled_at: now

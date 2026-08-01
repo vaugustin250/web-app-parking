@@ -388,7 +388,7 @@ export default function EntryForm({ onBack, onSuccess }) {
       const selectedZone = zones.find(z => z.id === zoneId)
 
       const entryPayload = {
-        id: crypto.randomUUID(),
+        id: crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); }),
         tenant_id: tenantId,
         ticket_no: ticket,
         vehicle_number: num,
@@ -411,7 +411,7 @@ export default function EntryForm({ onBack, onSuccess }) {
       // Record payment in payments table if collected
       if (paidAmount > 0) {
         const paymentPayload = {
-          id: crypto.randomUUID(), tenant_id: tenantId, ticket_no: ticket,
+          id: crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); }), tenant_id: tenantId, ticket_no: ticket,
           amount: paidAmount, method: payMode, status: 'COMPLETED',
           collected_by: profile?.full_name, settled_at: entryTime
         }
