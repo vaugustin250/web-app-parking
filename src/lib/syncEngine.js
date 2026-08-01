@@ -24,6 +24,10 @@ export const SyncEngine = {
   
   async syncAll() {
     if (!this.isOnline || this.isSyncing) return;
+    
+    // Prevent syncing if not logged in (avoids infinite 401 redirect loops)
+    if (!localStorage.getItem('token')) return;
+
     this.isSyncing = true;
 
     try {
@@ -88,6 +92,8 @@ export const SyncEngine = {
   
   async pullFreshData() {
     if (!this.isOnline) return;
+    if (!localStorage.getItem('token')) return;
+    
     try {
       const response = await api.get('/api/parking/active');
       const activeRecords = response.data.records;
