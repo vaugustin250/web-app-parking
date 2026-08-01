@@ -324,12 +324,36 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
             if (codes.length > 0) {
               clearInterval(interval)
               const raw = codes[0].rawValue
-              const match = raw.match(/ticket=([A-Z0-9]+)/)
-              if (match) {
-                stopInFormQr()
-                const arr = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.ticket_no === match[1] && r.status === 'PARKED').toArray()
-                if (arr[0]) selectRecord(arr[0])
-                else setError(`No active parking found for ticket ${match[1]}`)
+              const urlPart = raw.split('?')[1]
+              if (urlPart) {
+                const params = new URLSearchParams(urlPart)
+                const ticket = params.get('ticket')
+                const vehicle = params.get('vehicle')
+                const time = params.get('time')
+                const type = params.get('type')
+                
+                if (ticket) {
+                  stopInFormQr()
+                  const arr = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.ticket_no === ticket && r.status === 'PARKED').toArray()
+                  if (arr[0]) {
+                    selectRecord(arr[0])
+                  } else if (time) {
+                    const forceRecord = {
+                      id: crypto.randomUUID(),
+                      tenant_id: tenantId,
+                      ticket_no: ticket,
+                      vehicle_number: vehicle || 'UNKNOWN',
+                      entry_time: decodeURIComponent(time),
+                      vehicle_type: type ? decodeURIComponent(type) : '4-Wheeler',
+                      status: 'PARKED',
+                      is_offline_forced: true
+                    }
+                    selectRecord(forceRecord)
+                    setError(`⚠️ Vehicle entered on another device. Reconstructed from QR.`)
+                  } else {
+                    setError(`No active parking found for ticket ${ticket}`)
+                  }
+                }
               }
             }
           } catch {}
@@ -372,12 +396,16 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
       const now = new Date().toISOString()
       const durationMins = Math.floor((Date.now() - new Date(rec.entry_time).getTime()) / 60000)
       
-      await localDb.parking_records.update(rec.id, {
-        exit_time: now, duration_minutes: durationMins,
-        amount_charged: amt, payment_mode: mode, status: 'EXITED'
-      })
+      if (rec.is_offline_forced) {
+        await localDb.parking_records.add({ ...rec, exit_time: now, duration_minutes: durationMins, amount_charged: amt, payment_mode: mode, status: 'EXITED' })
+      } else {
+        await localDb.parking_records.update(rec.id, {
+          exit_time: now, duration_minutes: durationMins,
+          amount_charged: amt, payment_mode: mode, status: 'EXITED'
+        })
+      }
       SyncEngine.queueAction('UPDATE_PARKING_EXIT', 'parking_records', {
-        id: rec.id, exit_time: now, duration_minutes: durationMins,
+        id: rec.id, ticket_no: rec.ticket_no, exit_time: now, duration_minutes: durationMins,
         amount_charged: amt, payment_mode: mode, status: 'EXITED'
       })
 

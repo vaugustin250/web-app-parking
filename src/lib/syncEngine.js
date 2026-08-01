@@ -20,13 +20,19 @@ export const SyncEngine = {
     }
   },
 
+  isSyncing: false,
+  
   async syncAll() {
-    if (!this.isOnline) return;
+    if (!this.isOnline || this.isSyncing) return;
+    this.isSyncing = true;
 
     try {
       // 1. Fetch unsynced records from Dexie queue
       const queue = await localDb.sync_queue.toArray();
-      if (queue.length === 0) return;
+      if (queue.length === 0) {
+        this.isSyncing = false;
+        return;
+      }
 
       console.log(`Starting sync for ${queue.length} items...`);
 
@@ -37,33 +43,43 @@ export const SyncEngine = {
           if (item.action === 'INSERT_PARKING') {
             await api.post('/api/parking/entry', item.payload);
             success = true;
-          } else if (item.action === 'UPDATE_PARKING') {
+          } else if (item.action === 'UPDATE_PARKING_EXIT' || item.action === 'UPDATE_PARKING') {
             await api.post('/api/parking/exit', item.payload);
             success = true;
           }
           // Add other actions as needed
         } catch (err) {
           console.error('Failed to sync item:', item, err);
-          // If it's a 4xx error (validation), we might want to discard it.
-          // If it's 5xx or network error, keep it in queue to retry later.
+          // If it's a 4xx error (validation), discard it UNLESS it's a 404 for an exit (out of order sync)
           if (err.response && err.response.status >= 400 && err.response.status < 500) {
-             // discard invalid items
-             success = true; 
+             if (err.response.status === 404 && item.action === 'UPDATE_PARKING_EXIT') {
+               // The entry hasn't synced yet. Do not discard! Keep it in the queue.
+               success = false;
+             } else if (err.response.status === 409 && item.action === 'INSERT_PARKING') {
+               // Already parked. Discard.
+               success = true;
+             } else {
+               // For other 4xx errors, discard to prevent blocking the queue forever
+               success = true;
+             }
           }
         }
 
         if (success) {
           // Remove from local queue
           await localDb.sync_queue.delete(item.id);
+        } else {
+          // Stop processing the queue and wait for the next sync interval (Exponential backoff concept)
+          console.log('Sync halted due to network/dependency error. Will retry later.');
+          break;
         }
       }
       console.log('Sync complete!');
       
-      // Optional: Pull fresh data from server to local DB
-      // await this.pullFreshData();
-      
     } catch (error) {
       console.error('Error during sync:', error);
+    } finally {
+      this.isSyncing = false;
     }
   },
   

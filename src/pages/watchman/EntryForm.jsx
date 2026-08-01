@@ -15,7 +15,7 @@ function generateTicket() {
 
 // ── Print using blob URL — most reliable approach ───────────────────
 async function printEntrySlip({ ticket, vehicleNo, vehicleType, slotNo, zone, entryTime, companyName, address, passInfo, amountPaidAtEntry, entryPaymentMode }) {
-  const qrData = `vbills://exit?ticket=${ticket}&vehicle=${vehicleNo.replace(/\s/g,'')}`
+  const qrData = `vbills://exit?ticket=${ticket}&vehicle=${vehicleNo.replace(/\s/g,'')}&time=${encodeURIComponent(entryTime)}&type=${encodeURIComponent(vehicleType)}`
   let qrDataUrl = ''
   try {
     const QRCode = (await import('qrcode')).default
