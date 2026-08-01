@@ -50,8 +50,11 @@ export const SyncEngine = {
           } else if (item.action === 'UPDATE_PARKING_EXIT' || item.action === 'UPDATE_PARKING') {
             await api.post('/api/parking/exit', item.payload);
             success = true;
+          } else {
+            // Silently discard unsupported actions (like INSERT_PAYMENT, INSERT_AUDIT_LOG)
+            // so they don't permanently block the sync queue.
+            success = true;
           }
-          // Add other actions as needed
         } catch (err) {
           console.error('Failed to sync item:', item, err);
           // If it's a 4xx error (validation), discard it UNLESS it's a 404 for an exit (out of order sync)
