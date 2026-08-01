@@ -225,7 +225,14 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
   const tickerRef = useRef(null)
   const currency = settings?.currency_symbol ?? '₹'
 
-  useEffect(() => { if (tenantId) loadParked() }, [tenantId])
+  useEffect(() => { 
+    if (tenantId) {
+      // Background sync to fetch any latest parked vehicles from other devices
+      SyncEngine.pullFreshData().then(() => loadParked())
+      // Also load whatever is currently in localDB immediately
+      loadParked() 
+    }
+  }, [tenantId])
 
   useEffect(() => {
     if (!preloadTicket || !tenantId) return
@@ -339,7 +346,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
                     selectRecord(arr[0])
                   } else if (time) {
                     const forceRecord = {
-                      id: crypto.randomUUID(),
+                      id: ticket, // Use ticket_no as ID to prevent duplicates on double scan
                       tenant_id: tenantId,
                       ticket_no: ticket,
                       vehicle_number: vehicle || 'UNKNOWN',

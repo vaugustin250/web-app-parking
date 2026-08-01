@@ -81,6 +81,36 @@ export const SyncEngine = {
     } finally {
       this.isSyncing = false;
     }
+    
+    // Always attempt to pull fresh data from the server after syncing our local changes
+    await this.pullFreshData();
+  },
+  
+  async pullFreshData() {
+    if (!this.isOnline) return;
+    try {
+      const response = await api.get('/api/parking/active');
+      const activeRecords = response.data.records;
+      
+      // Get all local exit actions that haven't been successfully synced yet
+      const localExits = await localDb.sync_queue.filter(i => i.action === 'UPDATE_PARKING_EXIT').toArray();
+      const exitIdsInQueue = new Set(localExits.map(i => i.payload.id));
+      const exitTicketsInQueue = new Set(localExits.map(i => i.payload.ticket_no));
+
+      for (const rec of activeRecords) {
+         if (exitIdsInQueue.has(rec.id) || exitTicketsInQueue.has(rec.ticket_no)) {
+             // This record was exited locally but hasn't synced. Skip overwriting it!
+             continue;
+         }
+         // UPSERT into local IndexedDB
+         await localDb.parking_records.put({
+           ...rec,
+           status: 'PARKED'
+         });
+      }
+    } catch (e) {
+      console.error('Failed to pull fresh data', e);
+    }
   },
   
   // Helper to add an action to the queue
