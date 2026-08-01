@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 const VEHICLE_TYPES = ['2-Wheeler', '4-Wheeler', '4-Wheeler (SUV)', 'Heavy Vehicle', 'Auto Rickshaw']
 
@@ -133,14 +133,17 @@ export default function Settings() {
 
   async function save(e) {
     e.preventDefault(); setSaving(true); setSaved(false)
-    const { error } = await supabase.from('settings').upsert({
-      tenant_id: tenantId,
-      ...form,
-      rate_rules: rateRules,
-    }, { onConflict: 'tenant_id' })
-    setSaving(false)
-    if (!error) { setSaved(true); setTimeout(() => setSaved(false), 3000); refreshSettings() }
-    else alert('Save failed: ' + error.message)
+    try {
+      await api.put('/api/settings', {
+        ...form,
+        rate_rules: rateRules,
+      })
+      setSaved(true); setTimeout(() => setSaved(false), 3000); refreshSettings()
+    } catch (error) {
+      alert('Save failed: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 export default function PaymentSettings() {
   const { tenantId, settings, refreshSettings } = useAuth()
@@ -61,12 +61,16 @@ export default function PaymentSettings() {
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true); setSaved(false)
-    const { error } = await supabase.from('settings').upsert({ tenant_id: tenantId, ...form }, { onConflict: 'tenant_id' })
-    setSaving(false)
-    if (error) { alert('Save failed: ' + error.message); return }
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
-    refreshSettings()
+    try {
+      await api.put('/api/settings', form)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+      refreshSettings()
+    } catch (error) {
+      alert('Save failed: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

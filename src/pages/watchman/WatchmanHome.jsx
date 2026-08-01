@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import localDb from '../../lib/db.local'
+import SyncEngine from '../../lib/syncEngine'
+import { useLiveQuery } from 'dexie-react-hooks'
 import EntryForm from './EntryForm'
 import ExitForm from './ExitForm'
 
@@ -8,7 +10,6 @@ export default function WatchmanHome() {
   const { profile, settings, tenantId, signOut } = useAuth()
   const [view, setView] = useState('home') // 'home' | 'entry' | 'exit'
   const [preloadTicket, setPreloadTicket] = useState(null)
-  const [stats, setStats] = useState({ parked: 0, total: 50, todayEntries: 0, todayExits: 0 })
   const [scanningQr, setScanningQr] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const qrVideoRef = useRef(null)
@@ -20,41 +21,29 @@ export default function WatchmanHome() {
     return t
   })
 
-  useEffect(() => {
-    if (!tenantId) return
-    loadStats()
-    const sub = supabase.channel('watchman-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'parking_records', filter: `tenant_id=eq.${tenantId}` }, () => loadStats())
-      .subscribe()
-    return () => supabase.removeChannel(sub)
-  }, [tenantId])
-
-  async function loadStats() {
-    const today = new Date().toISOString().slice(0, 10)
-    const [{ count: parked }, { data: todayRec }] = await Promise.all([
-      supabase.from('parking_records').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'PARKED'),
-      supabase.from('parking_records').select('status').eq('tenant_id', tenantId).gte('entry_time', today + 'T00:00:00Z')
-    ])
-    const todayEntries = todayRec?.length ?? 0
-    const todayExits = todayRec?.filter(r => r.status === 'EXITED').length ?? 0
-    setStats({ parked: parked ?? 0, total: settings?.total_slots ?? 50, todayEntries, todayExits })
-  }
+  // Live stats from offline database
+  const stats = useLiveQuery(async () => {
+    if (!tenantId) return { parked: 0, total: 50, todayEntries: 0, todayExits: 0 };
+    const today = new Date().toISOString().slice(0, 10);
+    const records = await localDb.parking_records.toArray();
+    const parked = records.filter(r => r.status === 'PARKED').length;
+    const todayRecs = records.filter(r => r.entry_time >= today + 'T00:00:00Z');
+    const todayEntries = todayRecs.length;
+    const todayExits = todayRecs.filter(r => r.status === 'EXITED').length;
+    return { parked, total: settings?.total_slots ?? 50, todayEntries, todayExits };
+  }, [tenantId, settings]) || { parked: 0, total: 50, todayEntries: 0, todayExits: 0 };
 
   const occupancyPct = Math.round((stats.parked / stats.total) * 100)
 
   async function generateAndPrintShiftReport() {
     const now = new Date().toISOString()
     
-    // Fetch entries since login
-    const { count: entriesCount } = await supabase.from('parking_records').select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId).gte('entry_time', shiftStart)
+    // Fetch offline data
+    const entriesCount = await localDb.parking_records.filter(r => r.entry_time >= shiftStart).count()
+    const exitsCount = await localDb.parking_records.filter(r => r.status === 'EXITED' && r.exit_time >= shiftStart).count()
     
-    // Fetch exits/payments done by THIS watchman since login
-    const { data: payments } = await supabase.from('payments').select('amount, method')
-      .eq('tenant_id', tenantId).gte('settled_at', shiftStart).eq('collected_by', profile?.full_name)
-      
-    const { count: exitsCount } = await supabase.from('parking_records').select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId).eq('status', 'EXITED').gte('exit_time', shiftStart)
+    // Calculate payments locally
+    const payments = await localDb.payments.filter(r => r.settled_at >= shiftStart && r.collected_by === profile?.full_name).toArray()
 
     let cash = 0, upi = 0, total = 0
     if (payments) {
@@ -116,7 +105,7 @@ export default function WatchmanHome() {
     }
 
     try {
-      await supabase.from('shift_reports').insert({
+      const payload = {
         tenant_id: tenantId,
         watchman_name: profile?.full_name,
         start_time: shiftStart,
@@ -126,7 +115,9 @@ export default function WatchmanHome() {
         revenue_cash: shiftStats.cash,
         revenue_upi: shiftStats.upi,
         revenue_total: shiftStats.total
-      })
+      }
+      await localDb.shift_reports.add(payload)
+      SyncEngine.queueAction('INSERT_SHIFT_REPORT', 'shift_reports', payload)
     } catch (e) { console.error(e) }
     
     localStorage.removeItem('watchman_shift_start')
@@ -181,9 +172,6 @@ export default function WatchmanHome() {
   }
 
   function goHome() { setView('home'); setPreloadTicket(null) }
-  // onEntrySuccess does NOT navigate away — EntryForm stays open and resets itself
-  function onEntrySuccess() { loadStats() }
-  function onExitSuccess() { loadStats() }
 
   // ── Sign-out confirmation modal (no window.confirm) ─────────────────
   const SignOutModal = () => (
@@ -259,8 +247,8 @@ export default function WatchmanHome() {
         {/* Form body */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {view === 'entry'
-            ? <EntryForm onBack={goHome} onSuccess={onEntrySuccess} />
-            : <ExitForm onBack={goHome} onSuccess={onExitSuccess} preloadTicket={preloadTicket} />
+            ? <EntryForm onBack={goHome} onSuccess={() => {}} />
+            : <ExitForm onBack={goHome} onSuccess={() => {}} preloadTicket={preloadTicket} />
           }
         </div>
       </div>

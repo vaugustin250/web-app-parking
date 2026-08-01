@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -21,73 +21,47 @@ export default function Reports() {
 
   async function run() {
     setLoading(true)
-    const { data: records } = await supabase.from('parking_records').select('*')
-      .eq('tenant_id', tenantId)
-      .gte('entry_time', from + 'T00:00:00Z')
-      .lte('entry_time', to + 'T23:59:59Z')
-      .order('entry_time')
-    if (!records) { setLoading(false); return }
-
-    // Daily summary
-    const dayMap = {}
-    records.forEach(r => {
-      const day = r.entry_time?.slice(0, 10)
-      if (!day) return
-      if (!dayMap[day]) {
-        dayMap[day] = { date: day, entries: 0, exits: 0, revenue: 0, twoWheelers: 0, fourWheelers: 0, cash: 0, upi: 0 }
-      }
-      dayMap[day].entries++
-      if (r.vehicle_type === '2-Wheeler') dayMap[day].twoWheelers++
-      if (r.vehicle_type === '4-Wheeler') dayMap[day].fourWheelers++
+    try {
+      const res = await api.get(`/api/reports/daily?from=${from}&to=${to}`)
+      const { data: rows, summary: sums } = res.data
       
-      const entryAmt = r.amount_paid_at_entry || 0
-      if (entryAmt > 0) {
-        dayMap[day].revenue += entryAmt
-        const eMode = r.entry_payment_mode?.toUpperCase()
-        if (eMode === 'CASH') dayMap[day].cash += entryAmt
-        if (eMode === 'UPI') dayMap[day].upi += entryAmt
-      }
+      const daily = rows.map(d => ({
+        date: d.date,
+        label: new Date(d.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
+        entries: parseInt(d.entries) || 0,
+        exits: parseInt(d.exits) || 0,
+        revenue: Math.round(parseFloat(d.revenue) || 0),
+        twoWheelers: parseInt(d.two_wheelers) || 0,
+        fourWheelers: parseInt(d.four_wheelers) || 0,
+        cash: parseFloat(d.cash) || 0,
+        upi: parseFloat(d.upi) || 0
+      }))
+      setData(daily)
 
-      if (r.status === 'EXITED') { 
-        dayMap[day].exits++
-        const exitAmt = r.amount_charged || 0 
-        dayMap[day].revenue += exitAmt
-        const payMode = r.payment_mode?.toUpperCase()
-        if (payMode === 'CASH') dayMap[day].cash += exitAmt
-        if (payMode === 'UPI') dayMap[day].upi += exitAmt
-      }
-    })
-    const daily = Object.values(dayMap).map(d => ({
-      ...d,
-      label: new Date(d.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
-      revenue: Math.round(d.revenue)
-    }))
-    setData(daily)
+      const totalRev = sums.totalRevenue || 0
+      const totalExits = sums.totalExits || 0
+      setSummary({ 
+        revenue: totalRev, 
+        entries: sums.totalEntries || 0, 
+        exits: totalExits, 
+        avgFee: totalExits ? totalRev / totalExits : 0 
+      })
 
-    const exited = records.filter(r => r.status === 'EXITED')
-    const totalRev = records.reduce((s, r) => s + (r.amount_charged || 0) + (r.amount_paid_at_entry || 0), 0)
-    setSummary({ revenue: totalRev, entries: records.length, exits: exited.length, avgFee: exited.length ? totalRev / exited.length : 0 })
+      setTypeBreakdown([
+        { name: '2-Wheeler', value: sums.twoWheelers || 0 },
+        { name: '4-Wheeler', value: sums.fourWheelers || 0 }
+      ].filter(x => x.value > 0))
 
-    // Vehicle type breakdown
-    const typeMap = {}
-    records.forEach(r => { typeMap[r.vehicle_type] = (typeMap[r.vehicle_type] ?? 0) + 1 })
-    setTypeBreakdown(Object.entries(typeMap).map(([name, value]) => ({ name, value })))
+      setPayBreakdown([
+        { name: 'Cash', value: Math.round(sums.totalCash || 0) },
+        { name: 'UPI', value: Math.round(sums.totalUpi || 0) }
+      ].filter(x => x.value > 0))
 
-    // Payment method breakdown by revenue
-    const payMap = {}
-    records.forEach(r => {
-      if (r.amount_paid_at_entry > 0) {
-        const m = r.entry_payment_mode ?? 'Unknown'
-        payMap[m] = (payMap[m] ?? 0) + r.amount_paid_at_entry
-      }
-      if (r.status === 'EXITED' && (r.amount_charged || 0) > 0) {
-        const m = r.payment_mode ?? 'Unknown'
-        payMap[m] = (payMap[m] ?? 0) + (r.amount_charged || 0)
-      }
-    })
-    setPayBreakdown(Object.entries(payMap).map(([name, value]) => ({ name, value: Math.round(value) })))
-
-    setLoading(false)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4']

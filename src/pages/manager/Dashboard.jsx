@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 function StatCard({ icon, label, value, sub, color }) {
@@ -27,59 +27,45 @@ export default function Dashboard() {
   useEffect(() => {
     if (!tenantId) return
     loadDashboard()
-    const sub = supabase.channel('manager-dash')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'parking_records', filter: `tenant_id=eq.${tenantId}` },
-        () => loadDashboard())
-      .subscribe()
-    return () => supabase.removeChannel(sub)
+    const interval = setInterval(loadDashboard, 30000) // Poll every 30s instead of websockets
+    return () => clearInterval(interval)
   }, [tenantId])
 
   async function loadDashboard() {
-    const today = new Date().toISOString().slice(0, 10)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-    const overnightThreshold = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+      const overnightThreshold = new Date(Date.now() - 12 * 60 * 60 * 1000).getTime()
 
-    const [
-      { count: parked },
-      { data: parkedList },
-      { data: todayRecords },
-      { data: weekRecords },
-    ] = await Promise.all([
-      supabase.from('parking_records').select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId).eq('status', 'PARKED'),
-      supabase.from('parking_records').select('*').eq('tenant_id', tenantId).eq('status', 'PARKED')
-        .order('entry_time', { ascending: false }),
-      supabase.from('parking_records').select('amount_charged, status')
-        .eq('tenant_id', tenantId).gte('entry_time', today + 'T00:00:00Z'),
-      supabase.from('parking_records').select('entry_time, amount_charged, status')
-        .eq('tenant_id', tenantId).gte('entry_time', sevenDaysAgo).order('entry_time'),
-    ])
+      const [activeRes, reportRes] = await Promise.all([
+        api.get('/api/parking/active'),
+        api.get(`/api/reports/daily?from=${sevenDaysAgo}&to=${today}`)
+      ])
 
-    const todayRevenue = todayRecords?.filter(r => r.status === 'EXITED').reduce((s, r) => s + (r.amount_charged ?? 0), 0) ?? 0
-    const todayEntries = todayRecords?.length ?? 0
+      const parkedList = activeRes.data.records || []
+      const parked = parkedList.length
+      const weekDataRaw = reportRes.data.data || []
+      
+      const todayData = weekDataRaw.find(d => d.date.startsWith(today)) || { revenue: 0, entries: 0 }
+      const todayRevenue = Math.round(parseFloat(todayData.revenue) || 0)
+      const todayEntries = parseInt(todayData.entries) || 0
 
-    // Build week chart data (group by day)
-    const dayMap = {}
-    weekRecords?.forEach(r => {
-      const day = r.entry_time?.slice(0, 10)
-      if (!day) return
-      if (!dayMap[day]) dayMap[day] = { date: day, entries: 0, revenue: 0 }
-      dayMap[day].entries++
-      if (r.status === 'EXITED') dayMap[day].revenue += r.amount_charged ?? 0
-    })
-    const weekData = Object.values(dayMap).map(d => ({
-      ...d,
-      date: new Date(d.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }),
-      revenue: Math.round(d.revenue)
-    }))
+      const weekData = weekDataRaw.map(d => ({
+        date: new Date(d.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }),
+        revenue: Math.round(parseFloat(d.revenue) || 0),
+        entries: parseInt(d.entries) || 0
+      }))
 
-    // Overnight vehicles
-    const overnightVehicles = parkedList?.filter(r => new Date(r.entry_time) < new Date(overnightThreshold)) ?? []
+      const overnightVehicles = parkedList.filter(r => new Date(r.entry_time).getTime() < overnightThreshold)
 
-    setStats({ parked: parked ?? 0, total: settings?.total_slots ?? 50, todayRevenue, todayEntries, weekData })
-    setCurrentlyParked(parkedList ?? [])
-    setOvernight(overnightVehicles)
-    setLoading(false)
+      setStats({ parked, total: settings?.total_slots ?? 50, todayRevenue, todayEntries, weekData })
+      setCurrentlyParked(parkedList)
+      setOvernight(overnightVehicles)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const available = stats.total - stats.parked

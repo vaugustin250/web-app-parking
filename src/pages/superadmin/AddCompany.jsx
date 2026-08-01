@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 export default function AddCompany() {
   const navigate = useNavigate()
@@ -40,36 +40,7 @@ export default function AddCompany() {
   async function createCompany(e) {
     e.preventDefault()
     if (!company.business_name) { setError('Business name is required'); return }
-    setSaving(true); setError('')
-    try {
-      // Create tenant
-      const { data: tenant, error: tErr } = await supabase.from('tenants').insert({
-        business_name: company.business_name,
-        email: company.email || null,
-        phone: company.phone || null,
-        address: company.address || null,
-        license_status: company.license_status,
-        feature_passes_allowed: company.feature_passes_allowed,
-        feature_zones_allowed: company.feature_zones_allowed,
-        installation_date: company.installation_date ? new Date(company.installation_date).toISOString() : null,
-        renewal_end: company.renewal_end ? new Date(company.renewal_end).toISOString() : null,
-      }).select().single()
-      if (tErr) throw tErr
-
-      // Create settings row for this tenant
-      await supabase.from('settings').insert({
-        tenant_id: tenant.id,
-        company_name: company.business_name,
-        ...settings
-      })
-
-      setTenantId(tenant.id)
-      setStep(2)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
-    }
+    setStep(2)
   }
 
   async function createManager(e) {
@@ -80,42 +51,17 @@ export default function AddCompany() {
     if (manager.password.length < 6) { setError('Password must be at least 6 characters'); return }
     setSaving(true); setError('')
     try {
-      // 1. Snapshot current super-admin session BEFORE signUp
-      const { data: { session: adminSession } } = await supabase.auth.getSession()
-      if (!adminSession) throw new Error('Super admin session lost. Please refresh and try again.')
-
-      // 2. Create auth user for manager
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email: manager.email,
-        password: manager.password,
-        options: { data: { full_name: manager.full_name } }
+      const { data } = await api.post('/api/admin/tenants', {
+        company,
+        settings,
+        manager
       })
-      if (authErr) {
-        if (authErr.message?.includes('already registered')) throw new Error(`Email "${manager.email}" is already registered. Use a different email.`)
-        throw authErr
-      }
-      if (!authData?.user) throw new Error('Failed to create auth user. Please try again.')
-
-      // 3. Restore super-admin session immediately
-      await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      })
-
-      // 4. Link user to this tenant as MANAGER (using restored admin session)
-      const { error: profileErr } = await supabase.from('users').insert({
-        id: authData.user.id,
-        tenant_id: tenantId,
-        full_name: manager.full_name,
-        phone: manager.phone || null,
-        role: 'MANAGER',
-        active: true
-      })
-      if (profileErr) throw new Error('Auth account created but profile failed: ' + profileErr.message)
-
+      
+      setTenantId(data.tenantId)
       setStep(3)
     } catch (err) {
-      setError(err.message ?? 'Something went wrong. Please try again.')
+      console.error(err)
+      setError(err.response?.data?.error || 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }

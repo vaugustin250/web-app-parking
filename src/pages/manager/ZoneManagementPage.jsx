@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 const ZONE_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6']
 const COL_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -157,25 +157,27 @@ export default function ZoneManagementPage() {
 
   async function load() {
     setLoading(true)
-    const { data: zonesData } = await supabase.from('parking_zones').select('*').eq('tenant_id', tenantId).order('zone_order')
-    setZones(zonesData ?? [])
-
-    // Load occupancy per zone
-    const occ = {}
-    for (const z of (zonesData ?? [])) {
-      const { data: parked } = await supabase.from('parking_records').select('slot_no').eq('tenant_id', tenantId).eq('zone_id', z.id).eq('status', 'PARKED')
-      occ[z.id] = { count: parked?.length ?? 0, slots: parked?.map(p => p.slot_no).filter(Boolean) ?? [] }
+    try {
+      const { data } = await api.get('/api/zones')
+      setZones(data.zones ?? [])
+      setOccupancy(data.occupancy ?? {})
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
-    setOccupancy(occ)
-    setLoading(false)
   }
 
   async function toggleZonesEnabled() {
     setToggling(true)
     const newVal = !zonesEnabled
-    await supabase.from('settings').upsert({ tenant_id: tenantId, zones_enabled: newVal }, { onConflict: 'tenant_id' })
-    setZonesEnabled(newVal)
-    await refreshSettings()
+    try {
+      await api.put('/api/settings', { zones_enabled: newVal })
+      setZonesEnabled(newVal)
+      await refreshSettings()
+    } catch (err) {
+      alert('Failed to toggle zones')
+    }
     setToggling(false)
   }
 
@@ -195,18 +197,10 @@ export default function ZoneManagementPage() {
         zone_order: form.zone_order ?? zones.length,
       }
       
-      let dbError = null
       if (form.id) {
-        const { error } = await supabase.from('parking_zones').update(payload).eq('id', form.id)
-        dbError = error
+        await api.put(`/api/zones/${form.id}`, payload)
       } else {
-        const { error } = await supabase.from('parking_zones').insert(payload)
-        dbError = error
-      }
-      
-      if (dbError) {
-        alert('Database Error saving zone: ' + dbError.message)
-        return
+        await api.post('/api/zones', payload)
       }
 
       setShowModal(false)
@@ -218,15 +212,19 @@ export default function ZoneManagementPage() {
   }
 
   async function toggleActive(zone) {
-    await supabase.from('parking_zones').update({ active: !zone.active }).eq('id', zone.id)
-    await load()
+    try {
+      await api.put(`/api/zones/${zone.id}`, { ...zone, active: !zone.active })
+      await load()
+    } catch (err) { alert('Failed to update zone') }
   }
 
   async function deleteZone(zone) {
     const occ = occupancy[zone.id]?.count ?? 0
     if (occ > 0) { alert(`Cannot delete zone "${zone.zone_name}" — ${occ} vehicles currently parked inside.`); return }
-    await supabase.from('parking_zones').delete().eq('id', zone.id)
-    await load()
+    try {
+      await api.delete(`/api/zones/${zone.id}`)
+      await load()
+    } catch (err) { alert('Failed to delete zone') }
   }
 
   if (!zonesAllowed) {

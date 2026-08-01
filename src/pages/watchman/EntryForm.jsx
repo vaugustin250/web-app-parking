@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import localDb from '../../lib/db.local'
+import SyncEngine from '../../lib/syncEngine'
 import PlateKeypad, { formatVehicleNo } from '../../components/PlateKeypad'
 
 const VEHICLE_TYPES = ['2-Wheeler', '4-Wheeler', '4-Wheeler (SUV)', 'Heavy Vehicle', 'Auto Rickshaw']
@@ -233,8 +234,8 @@ export default function EntryForm({ onBack, onSuccess }) {
   async function checkPass(vehicleNum) {
     setCheckingPass(true)
     const today = new Date().toISOString().slice(0, 10)
-    const { data } = await supabase.from('parking_passes')
-      .select('*').eq('tenant_id', tenantId).eq('vehicle_number', vehicleNum).eq('status', 'ACTIVE').gte('valid_until', today).single()
+    const dataArr = await localDb.parking_passes.filter(p => p.tenant_id === tenantId && p.vehicle_number === vehicleNum && p.status === 'ACTIVE' && p.valid_until >= today).toArray()
+    const data = dataArr[0]
     setCheckingPass(false)
     if (data) {
       const daysLeft = Math.ceil((new Date(data.valid_until) - new Date()) / (1000 * 60 * 60 * 24))
@@ -243,12 +244,13 @@ export default function EntryForm({ onBack, onSuccess }) {
   }
 
   async function loadZones() {
-    const { data } = await supabase.from('parking_zones').select('*').eq('tenant_id', tenantId).eq('active', true).order('zone_order')
+    let data = await localDb.parking_zones.filter(z => z.tenant_id === tenantId && z.active === true).toArray()
+    data = data.sort((a,b) => a.zone_order - b.zone_order)
     setZones(data ?? [])
     if (data?.length) {
       const counts = {}
       await Promise.all(data.map(async z => {
-        const { count } = await supabase.from('parking_records').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('zone_id', z.id).eq('status', 'PARKED')
+        const count = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.zone_id === z.id && r.status === 'PARKED').count()
         counts[z.id] = count ?? 0
       }))
       setZoneStats(counts)
@@ -322,14 +324,12 @@ export default function EntryForm({ onBack, onSuccess }) {
     setLoading(true); setError('')
     try {
       // Capacity check
-      const { count: parked } = await supabase.from('parking_records')
-        .select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'PARKED')
+      const parked = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.status === 'PARKED').count()
       const total = settings?.total_slots ?? 50
       if (parked >= total) { setError('❌ Parking is FULL. No slots available.'); setLoading(false); return }
 
       // Duplicate check
-      const { data: existing } = await supabase.from('parking_records')
-        .select('id, ticket_no').eq('tenant_id', tenantId).eq('vehicle_number', num).eq('status', 'PARKED')
+      const existing = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.vehicle_number === num && r.status === 'PARKED').toArray()
       if (existing?.length > 0) {
         setError(`⚠️ ${num} is already parked! (Ticket: ${existing[0].ticket_no}). Cannot enter twice.`)
         setLoading(false); return
@@ -387,7 +387,8 @@ export default function EntryForm({ onBack, onSuccess }) {
       const entryTime = new Date().toISOString()
       const selectedZone = zones.find(z => z.id === zoneId)
 
-      const { error: insErr } = await supabase.from('parking_records').insert({
+      const entryPayload = {
+        id: crypto.randomUUID(),
         tenant_id: tenantId,
         ticket_no: ticket,
         vehicle_number: num,
@@ -403,42 +404,37 @@ export default function EntryForm({ onBack, onSuccess }) {
         status: 'PARKED',
         amount_paid_at_entry: paidAmount,
         entry_payment_mode: payMode
-      })
-      if (insErr) throw insErr
+      }
+      await localDb.parking_records.add(entryPayload)
+      SyncEngine.queueAction('INSERT_PARKING', 'parking_records', entryPayload)
 
       // Record payment in payments table if collected
       if (paidAmount > 0) {
-        await supabase.from('payments').insert({
-          tenant_id: tenantId, ticket_no: ticket,
+        const paymentPayload = {
+          id: crypto.randomUUID(), tenant_id: tenantId, ticket_no: ticket,
           amount: paidAmount, method: payMode, status: 'COMPLETED',
           collected_by: profile?.full_name, settled_at: entryTime
-        })
+        }
+        await localDb.payments.add(paymentPayload)
+        SyncEngine.queueAction('INSERT_PAYMENT', 'payments', paymentPayload)
       }
 
-      // Audit log — fire and forget properly (no .catch on PromiseLike)
-      ;(async () => {
-        try {
-          await supabase.from('audit_log').insert({
-            tenant_id: tenantId,
-            user_name: profile?.full_name,
-            action: 'VEHICLE_ENTRY',
-            details: `${num} | Ticket: ${ticket}${selectedZone ? ` | Zone: ${selectedZone.zone_name}` : ''}${passInfo ? ' | PASS' : ''}`
-          })
-        } catch {}
-      })()
+      // Audit log — fire and forget properly
+      SyncEngine.queueAction('INSERT_AUDIT_LOG', 'audit_log', {
+        tenant_id: tenantId,
+        user_name: profile?.full_name,
+        action: 'VEHICLE_ENTRY',
+        details: `${num} | Ticket: ${ticket}${selectedZone ? ` | Zone: ${selectedZone.zone_name}` : ''}${passInfo ? ' | PASS' : ''}`
+      })
 
       // Log pass usage if applicable
       if (passInfo) {
-        ;(async () => {
-          try {
-            await supabase.from('pass_usage_logs').insert({
-              tenant_id: tenantId,
-              pass_id: passInfo.id,
-              ticket_no: ticket,
-              used_at: entryTime
-            })
-          } catch {}
-        })()
+        SyncEngine.queueAction('INSERT_PASS_LOG', 'pass_usage_logs', {
+          tenant_id: tenantId,
+          pass_id: passInfo.id,
+          ticket_no: ticket,
+          used_at: entryTime
+        })
       }
 
       // Auto-print slip immediately — no manual button

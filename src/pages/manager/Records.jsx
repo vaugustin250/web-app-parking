@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 export default function Records() {
   const { tenantId, settings } = useAuth()
@@ -14,15 +14,20 @@ export default function Records() {
 
   async function load() {
     setLoading(true)
-    let query = supabase.from('parking_records').select('*').eq('tenant_id', tenantId).order('entry_time', { ascending: false }).limit(200)
-    if (filter !== 'ALL') query = query.eq('status', filter)
-    const { data } = await query
-    setRecords(data ?? [])
-    setLoading(false)
+    try {
+      const { data } = await api.get('/api/reports/records?limit=200')
+      let recs = data.records || []
+      if (filter !== 'ALL') recs = recs.filter(r => r.status === filter)
+      setRecords(recs)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filtered = records.filter(r =>
-    !search || r.vehicle_number?.includes(search.toUpperCase()) ||
+    !search || r.vehicle_number?.toUpperCase().includes(search.toUpperCase()) ||
     r.ticket_no?.includes(search) || r.driver_name?.toLowerCase().includes(search.toLowerCase())
   )
 

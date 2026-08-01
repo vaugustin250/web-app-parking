@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import SyncEngine from './lib/syncEngine'
 import Login from './pages/Login'
 import WatchmanHome from './pages/watchman/WatchmanHome'
 import ManagerLayout from './layouts/ManagerLayout'
@@ -54,6 +56,10 @@ export default function App() {
       }
     }, { once: true })
   }
+
+  useEffect(() => {
+    SyncEngine.init();
+  }, []);
 
   return (
     <AuthProvider>

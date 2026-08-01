@@ -23,9 +23,8 @@ export default function Login() {
       await signIn(email, password)
       navigate('/')
     } catch (err) {
-      setError(err.message === 'Invalid login credentials'
-        ? 'Incorrect email or password. Please try again.'
-        : err.message)
+      const errorMsg = err.response?.data?.error || err.message || 'Login failed';
+      setError(errorMsg)
     } finally {
       setLoading(false)
     }

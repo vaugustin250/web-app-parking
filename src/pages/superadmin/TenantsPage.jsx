@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -28,43 +28,41 @@ export default function TenantsPage() {
 
   async function load() {
     setLoading(true)
-    const [
-      { data: tenantsData, error: tenantErr },
-      { data: staffData },
-    ] = await Promise.all([
-      supabase.from('tenants').select('*, settings(company_name, total_slots)').order('created_at', { ascending: false }),
-      supabase.from('users').select('id, created_at'),
-    ])
-
-    if (tenantErr) { console.error('Tenants load error:', tenantErr.message); setLoading(false); return }
-    if (!tenantsData) { setLoading(false); return }
-    setTenants(tenantsData)
-    setTotalStaffCount(staffData?.length ?? 0)
-
-    // Build signup trend (last 12 months)
-    const trend = {}
-    tenantsData.forEach(t => {
-      const m = t.created_at?.slice(0, 7); if (!m) return
-      trend[m] = (trend[m] || 0) + 1
-    })
-    const months = []
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(); d.setMonth(d.getMonth() - i)
-      const key = d.toISOString().slice(0, 7)
-      months.push({ month: d.toLocaleString('default', { month: 'short', year: '2-digit' }), companies: trend[key] || 0 })
+    try {
+      const { data } = await api.get('/api/admin/tenants')
+      setTenants(data.tenants)
+      
+      // Build signup trend (last 12 months)
+      const trend = {}
+      data.tenants.forEach(t => {
+        const m = t.created_at?.slice(0, 7); if (!m) return
+        trend[m] = (trend[m] || 0) + 1
+      })
+      const months = []
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(); d.setMonth(d.getMonth() - i)
+        const key = d.toISOString().slice(0, 7)
+        months.push({ month: d.toLocaleString('default', { month: 'short', year: '2-digit' }), companies: trend[key] || 0 })
+      }
+      setSignupTrend(months)
+    } catch (err) {
+      console.error('Tenants load error:', err)
     }
-    setSignupTrend(months)
     setLoading(false)
   }
 
   async function updateStatus(tenantId, status) {
-    await supabase.from('tenants').update({ license_status: status }).eq('id', tenantId)
-    load()
+    try {
+      await api.patch(`/api/admin/tenants/${tenantId}/status`, { status })
+      load()
+    } catch (err) { console.error(err) }
   }
 
   async function toggleFeature(tenantId, feature, currentVal) {
-    await supabase.from('tenants').update({ [feature]: !currentVal }).eq('id', tenantId)
-    load()
+    try {
+      await api.patch(`/api/admin/tenants/${tenantId}/feature`, { feature, value: !currentVal })
+      load()
+    } catch (err) { console.error(err) }
   }
 
   const filteredByTime = tenants.filter(t => {

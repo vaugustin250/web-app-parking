@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import QRCode from 'qrcode'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 const PASS_TYPES = ['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUAL']
 
@@ -86,10 +86,14 @@ export default function ParkingPasses() {
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('parking_passes')
-      .select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false })
-    setPasses(data ?? [])
-    setLoading(false)
+    try {
+      const { data } = await api.get('/api/passes')
+      setPasses(data.passes ?? [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function createPass(e) {
@@ -106,33 +110,38 @@ export default function ParkingPasses() {
     let qrCode = ''
     try { qrCode = await QRCode.toDataURL(qrData, { width: 200, margin: 1 }) } catch {}
 
-    const { error: err } = await supabase.from('parking_passes').insert({
-      tenant_id: tenantId,
-      pass_number: passNumber,
-      pass_type: form.pass_type,
-      holder_name: form.holder_name,
-      vehicle_number: vehicleNum,
-      phone: form.phone || null,
-      valid_from: form.valid_from,
-      valid_until: validUntil,
-      max_entries: form.max_entries ? parseInt(form.max_entries) : null,
-      price_charged: form.price_charged ? parseFloat(form.price_charged) : null,
-      qr_code: qrCode,
-      status: 'ACTIVE'
-    })
-
-    setSaving(false)
-    if (err) { setError(err.message); return }
-    setShowAdd(false)
-    setForm({ holder_name: '', vehicle_number: '', phone: '', pass_type: 'MONTHLY', valid_from: new Date().toISOString().slice(0, 10), max_entries: '', price_charged: '' })
-    load()
+    try {
+      await api.post('/api/passes', {
+        pass_number: passNumber,
+        pass_type: form.pass_type,
+        holder_name: form.holder_name,
+        vehicle_number: vehicleNum,
+        phone: form.phone || null,
+        valid_from: form.valid_from,
+        valid_until: validUntil,
+        max_entries: form.max_entries ? parseInt(form.max_entries) : null,
+        price_charged: form.price_charged ? parseFloat(form.price_charged) : null,
+        qr_code: qrCode
+      })
+      setShowAdd(false)
+      setForm({ holder_name: '', vehicle_number: '', phone: '', pass_type: 'MONTHLY', valid_from: new Date().toISOString().slice(0, 10), max_entries: '', price_charged: '' })
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function renewPass(pass) {
     const newFrom = new Date().toISOString().slice(0, 10)
     const newUntil = getEndDate(newFrom, pass.pass_type)
-    await supabase.from('parking_passes').update({ valid_from: newFrom, valid_until: newUntil, status: 'ACTIVE' }).eq('id', pass.id)
-    load()
+    try {
+      await api.put(`/api/passes/${pass.id}/renew`, { valid_from: newFrom, valid_until: newUntil })
+      load()
+    } catch (err) {
+      alert('Failed to renew pass')
+    }
   }
 
   const today = new Date().toISOString().slice(0, 10)

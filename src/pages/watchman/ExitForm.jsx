@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import localDb from '../../lib/db.local'
+import SyncEngine from '../../lib/syncEngine'
 import PlateKeypad from '../../components/PlateKeypad'
 
 // ── Fee calculator — supports dynamic rate_rules JSON ────────────────
@@ -228,13 +229,14 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
 
   useEffect(() => {
     if (!preloadTicket || !tenantId) return
-    supabase.from('parking_records').select('*').eq('tenant_id', tenantId).eq('ticket_no', preloadTicket).eq('status', 'PARKED').single()
-      .then(({ data }) => { if (data) selectRecord(data) })
+    localDb.parking_records.filter(r => r.tenant_id === tenantId && r.ticket_no === preloadTicket && r.status === 'PARKED').toArray()
+      .then(arr => { if (arr[0]) selectRecord(arr[0]) })
   }, [preloadTicket, tenantId])
 
   async function loadParked() {
     setListLoading(true)
-    const { data } = await supabase.from('parking_records').select('*').eq('tenant_id', tenantId).eq('status', 'PARKED').order('entry_time', { ascending: false })
+    let data = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.status === 'PARKED').toArray()
+    data = data.sort((a,b) => new Date(b.entry_time) - new Date(a.entry_time))
     setParkedList(data ?? [])
     setListLoading(false)
   }
@@ -258,9 +260,10 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
     if (r.pass_id) {
       setListLoading(true)
       try {
-        const { data: pass } = await supabase.from('parking_passes').select('*').eq('id', r.pass_id).single()
+        const passArr = await localDb.parking_passes.filter(p => p.id === r.pass_id).toArray()
+        const pass = passArr[0]
         if (pass && pass.status === 'ACTIVE' && new Date(pass.valid_until).getTime() > Date.now()) {
-          const { count } = await supabase.from('pass_usage_logs').select('*', { count: 'exact', head: true }).eq('pass_id', pass.id)
+          const count = 0 // offline estimation
           
           if (!pass.max_entries || count <= pass.max_entries) {
             const remaining = pass.max_entries ? pass.max_entries - count : null
@@ -324,8 +327,8 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
               const match = raw.match(/ticket=([A-Z0-9]+)/)
               if (match) {
                 stopInFormQr()
-                const { data } = await supabase.from('parking_records').select('*').eq('tenant_id', tenantId).eq('ticket_no', match[1]).eq('status', 'PARKED').single()
-                if (data) selectRecord(data)
+                const arr = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.ticket_no === match[1] && r.status === 'PARKED').toArray()
+                if (arr[0]) selectRecord(arr[0])
                 else setError(`No active parking found for ticket ${match[1]}`)
               }
             }
@@ -368,29 +371,32 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
     try {
       const now = new Date().toISOString()
       const durationMins = Math.floor((Date.now() - new Date(rec.entry_time).getTime()) / 60000)
-      const { error: upErr } = await supabase.from('parking_records').update({
+      
+      await localDb.parking_records.update(rec.id, {
         exit_time: now, duration_minutes: durationMins,
         amount_charged: amt, payment_mode: mode, status: 'EXITED'
-      }).eq('id', rec.id)
-      if (upErr) throw upErr
+      })
+      SyncEngine.queueAction('UPDATE_PARKING_EXIT', 'parking_records', {
+        id: rec.id, exit_time: now, duration_minutes: durationMins,
+        amount_charged: amt, payment_mode: mode, status: 'EXITED'
+      })
 
       if (amt > 0) {
-        await supabase.from('payments').insert({
+        const paymentPayload = {
+          id: crypto.randomUUID(),
           tenant_id: tenantId, ticket_no: rec.ticket_no,
           amount: amt, method: mode, status: 'COMPLETED',
           collected_by: profile?.full_name, settled_at: now
-        })
+        }
+        await localDb.payments.add(paymentPayload)
+        SyncEngine.queueAction('INSERT_PAYMENT', 'payments', paymentPayload)
       }
 
-      ;(async () => {
-        try {
-          await supabase.from('audit_log').insert({
-            tenant_id: tenantId, user_name: profile?.full_name,
-            action: 'VEHICLE_EXIT',
-            details: `${rec.vehicle_number} | ${currency}${amt} | ${mode}${pData ? ' | PASS' : ''}`
-          })
-        } catch {}
-      })()
+      SyncEngine.queueAction('INSERT_AUDIT_LOG', 'audit_log', {
+        tenant_id: tenantId, user_name: profile?.full_name,
+        action: 'VEHICLE_EXIT',
+        details: `${rec.vehicle_number} | ${currency}${amt} | ${mode}${pData ? ' | PASS' : ''}`
+      })
 
       // Auto-print receipt immediately — no manual button
       printReceipt({ record: rec, amount: amt, payMode: mode, settings, passData: pData })

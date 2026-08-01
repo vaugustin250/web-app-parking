@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 function printShiftReport(r, companyName) {
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shift Report</title>
@@ -67,22 +67,28 @@ export default function Staff() {
   useEffect(() => { if (tenantId) load() }, [tenantId])
 
   async function load() {
-    const { data } = await supabase.from('users').select('*').eq('tenant_id', tenantId).order('created_at')
-    setStaff(data ?? [])
+    try {
+      const { data } = await api.get('/api/staff')
+      setStaff(data.staff ?? [])
+    } catch (e) { console.error(e) }
     
     // Also load recent shift reports
     try {
-      const { data: repData } = await supabase.from('shift_reports').select('*').eq('tenant_id', tenantId).order('end_time', { ascending: false }).limit(30)
-      setReports(repData ?? [])
-    } catch (e) {}
+      const { data: repData } = await api.get('/api/reports/shifts')
+      setReports(repData.shifts ?? [])
+    } catch (e) { console.error(e) }
     
     setLoading(false)
     setLoadingReports(false)
   }
 
   async function toggleActive(user) {
-    await supabase.from('users').update({ active: !user.active }).eq('id', user.id)
-    load()
+    try {
+      await api.put(`/api/staff/${user.id}`, { ...user, active: !user.active })
+      load()
+    } catch (err) {
+      alert('Failed to update status')
+    }
   }
 
   async function addStaff(e) {
@@ -90,40 +96,12 @@ export default function Staff() {
     if (!form.email || !form.full_name || !form.password) { setError('Email, name and password are required'); return }
     setSaving(true); setError('')
     try {
-      // Save current session BEFORE creating the new user
-      // (Supabase signUp replaces the active session — we must restore it)
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: { data: { full_name: form.full_name } }
-      })
-      if (authErr) throw authErr
-
-      // Restore the manager's original session immediately
-      if (currentSession) {
-        await supabase.auth.setSession({
-          access_token: currentSession.access_token,
-          refresh_token: currentSession.refresh_token,
-        })
-      }
-
-      // Insert into users table
-      await supabase.from('users').insert({
-        id: authData.user.id,
-        tenant_id: tenantId,
-        full_name: form.full_name,
-        phone: form.phone || null,
-        role: form.role,
-        active: true
-      })
-
+      await api.post('/api/staff', form)
       setShowAdd(false)
       setForm({ full_name: '', email: '', phone: '', role: 'WATCHMAN', password: '' })
       load()
     } catch (err) {
-      setError(err.message)
+      setError(err.response?.data?.error || err.message)
     } finally {
       setSaving(false)
     }

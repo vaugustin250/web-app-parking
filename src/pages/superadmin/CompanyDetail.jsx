@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 const TABS = ['Info & Features', 'Staff', 'Parking Zones', 'Settings']
 
@@ -30,32 +30,26 @@ export default function CompanyDetail() {
 
   async function loadAll() {
     setLoading(true)
-    const [
-      { data: t },
-      { data: s },
-      { data: staffData },
-      { data: zonesData },
-    ] = await Promise.all([
-      supabase.from('tenants').select('*').eq('id', tenantId).single(),
-      supabase.from('settings').select('*').eq('tenant_id', tenantId).single(),
-      supabase.from('users').select('*').eq('tenant_id', tenantId).order('created_at'),
-      supabase.from('parking_zones').select('*').eq('tenant_id', tenantId).order('zone_order'),
-    ])
-    setTenant(t)
-    setSettings(s)
-    setSettingsForm({ ...s })
-    setStaff(staffData ?? [])
-    setZones(zonesData ?? [])
+    try {
+      const { data } = await api.get(`/api/admin/tenants/${tenantId}`)
+      setTenant(data.tenant)
+      setSettings(data.settings)
+      setSettingsForm({ ...data.settings })
+      setStaff(data.users ?? [])
+      setZones(data.zones ?? [])
+    } catch (err) {
+      console.error(err)
+    }
     setLoading(false)
   }
 
   async function updateLicenseStatus(status) {
-    await supabase.from('tenants').update({ license_status: status }).eq('id', tenantId)
+    await api.patch(`/api/admin/tenants/${tenantId}/status`, { status })
     loadAll()
   }
 
   async function toggleFeature(feature, currentVal) {
-    await supabase.from('tenants').update({ [feature]: !currentVal }).eq('id', tenantId)
+    await api.patch(`/api/admin/tenants/${tenantId}/feature`, { feature, value: !currentVal })
     loadAll()
   }
 
@@ -64,23 +58,23 @@ export default function CompanyDetail() {
     if (!staffForm.email || !staffForm.full_name || !staffForm.password) { setStaffError('All fields required'); return }
     setStaffSaving(true); setStaffError('')
     try {
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email: staffForm.email, password: staffForm.password,
-        options: { data: { full_name: staffForm.full_name } }
+      await api.post('/api/admin/users', {
+        tenantId,
+        fullName: staffForm.full_name,
+        email: staffForm.email,
+        password: staffForm.password,
+        phone: staffForm.phone,
+        role: staffForm.role
       })
-      if (authErr) throw authErr
-      if (currentSession) await supabase.auth.setSession({ access_token: currentSession.access_token, refresh_token: currentSession.refresh_token })
-      await supabase.from('users').insert({ id: authData.user.id, tenant_id: tenantId, full_name: staffForm.full_name, phone: staffForm.phone || null, role: staffForm.role, active: true })
       setShowAddStaff(false)
       setStaffForm({ full_name: '', email: '', phone: '', role: 'WATCHMAN', password: '' })
       loadAll()
-    } catch (err) { setStaffError(err.message) }
+    } catch (err) { setStaffError(err.response?.data?.error || err.message) }
     finally { setStaffSaving(false) }
   }
 
   async function toggleStaff(u) {
-    await supabase.from('users').update({ active: !u.active }).eq('id', u.id)
+    await api.put(`/api/admin/users/${u.id}/toggle`)
     loadAll()
   }
 
@@ -88,7 +82,7 @@ export default function CompanyDetail() {
     e.preventDefault()
     if (!newZone.zone_name) return
     setZoneSaving(true)
-    await supabase.from('parking_zones').insert({ tenant_id: tenantId, zone_name: newZone.zone_name, total_slots: newZone.total_slots, zone_order: zones.length })
+    await api.post('/api/admin/zones', { tenantId, ...newZone, zone_order: zones.length })
     setNewZone({ zone_name: '', total_slots: 10 })
     setZoneSaving(false)
     loadAll()
@@ -96,18 +90,20 @@ export default function CompanyDetail() {
 
   async function deleteZone(zoneId) {
     if (!window.confirm('Delete this zone?')) return
-    await supabase.from('parking_zones').delete().eq('id', zoneId)
+    await api.delete(`/api/admin/zones/${zoneId}`)
     loadAll()
   }
 
   async function saveSettings(e) {
     e.preventDefault()
     setSettingsSaving(true); setSettingsSaved(false)
-    await supabase.from('settings').upsert({ ...settingsForm, tenant_id: tenantId }, { onConflict: 'tenant_id' })
-    await supabase.from('tenants').update({ business_name: settingsForm.company_name || tenant?.business_name, email: settingsForm.email, phone: settingsForm.phone }).eq('id', tenantId)
-    setSettingsSaving(false); setSettingsSaved(true)
-    setTimeout(() => setSettingsSaved(false), 3000)
-    loadAll()
+    try {
+      await api.put(`/api/admin/tenants/${tenantId}`, settingsForm)
+      setSettingsSaved(true)
+      setTimeout(() => setSettingsSaved(false), 3000)
+      loadAll()
+    } catch (err) { console.error(err) }
+    finally { setSettingsSaving(false) }
   }
 
   if (loading) return <div className="loading-screen"><div className="spinner" /><span>Loading company...</span></div>
