@@ -282,6 +282,16 @@ export default function WatchmanHome() {
             <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{profile?.full_name?.split(' ')[0]}</div>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>Watchman</div>
           </div>
+          <button onClick={async () => {
+            if (window.confirm('Reset offline data?')) {
+              const Dexie = (await import('dexie')).default;
+              await Dexie.delete('ParkEaseDB');
+              localStorage.clear();
+              window.location.reload();
+            }
+          }} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: 8, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>
+            🔄 Reset
+          </button>
           <button onClick={handleSignOut} style={{
             background: 'rgba(220,38,38,0.2)', border: '1px solid rgba(220,38,38,0.4)',
             color: '#fca5a5', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
