@@ -55,6 +55,7 @@ export function AuthProvider({ children }) {
   async function signIn(email, password) {
     const { data } = await api.post('/api/auth/login', { email, password })
     localStorage.setItem('token', data.accessToken)
+    localStorage.setItem('refreshToken', data.refreshToken)
     data.user.role = data.user.role ? data.user.role.toUpperCase() : null
     localStorage.setItem('user', JSON.stringify(data.user))
     setUser(data.user)
@@ -65,6 +66,7 @@ export function AuthProvider({ children }) {
 
   async function signOut() {
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     setUser(null)
     setSettings(null)

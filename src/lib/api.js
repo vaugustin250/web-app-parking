@@ -19,13 +19,33 @@ api.interceptors.request.use((config) => {
 });
 
 // Add a response interceptor for global error handling
-api.interceptors.response.use((response) => response, (error) => {
-  // Handle unauthorized errors (e.g. redirect to login)
-  // Skip this for the login endpoint itself so we can show the error message!
-  if (error.response && error.response.status === 401 && !error.config.url.includes('/login')) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+api.interceptors.response.use((response) => response, async (error) => {
+  const originalRequest = error.config;
+  if (error.response && error.response.status === 401 && !originalRequest.url.includes('/login') && !originalRequest.url.includes('/refresh')) {
+    if (!originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) throw new Error('No refresh token');
+        
+        // Use a clean axios instance to avoid circular interceptor loops
+        const { data } = await axios.post(`${api.defaults.baseURL}/api/auth/refresh`, { refreshToken });
+        
+        localStorage.setItem('token', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        
+        // Update the original request header with new token
+        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        return api(originalRequest);
+      } catch (err) {
+        // If refresh fails, log the user out
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(err);
+      }
+    }
   }
   return Promise.reject(error);
 });
