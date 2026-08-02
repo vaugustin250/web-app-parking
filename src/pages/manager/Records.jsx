@@ -17,6 +17,8 @@ export default function Records() {
     try {
       const { data } = await api.get('/api/reports/records?limit=200')
       let recs = data.records || []
+      // Dynamically correct status for older records that missed the DB update
+      recs = recs.map(r => ({ ...r, status: r.exit_time ? 'EXITED' : 'PARKED' }))
       if (filter !== 'ALL') recs = recs.filter(r => r.status === filter)
       setRecords(recs)
     } catch (err) {
