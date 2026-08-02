@@ -610,7 +610,9 @@ export default function EntryForm({ onBack, onSuccess }) {
             </div>
 
             {/* Vehicle type + zone/slot */}
-            <div className="grid-2" style={{ marginBottom: 8 }}>
+            {!showKeypad && (
+              <>
+                <div className="grid-2" style={{ marginBottom: 8 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Vehicle Type *</label>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -660,6 +662,7 @@ export default function EntryForm({ onBack, onSuccess }) {
                 {loading ? '⏳ Registering...' : passInfo ? '🎫 Register PASS Entry' : '✅ Register Entry'}
               </button>
             </div>
+            </>)}
           </form>
         </div>
 
