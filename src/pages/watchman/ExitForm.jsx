@@ -599,7 +599,7 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
               </button>
 
               {/* Prominent IN / OUT / Duration display */}
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 12, marginBottom: 8 }}>
                 <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--text-primary)', marginBottom: 12, letterSpacing: 1 }}>
                   {record.vehicle_number} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>— {record.vehicle_type}</span>
                 </div>
@@ -635,8 +635,8 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
                   <div className="alert alert-danger" style={{ marginTop: 8 }}>⚠️ Overnight vehicle — over 12 hours</div>
                 )}
                 
-                <div style={{ background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)', marginTop: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)', marginTop: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{ color: '#94a3b8' }}>Total Duration:</span>
                     <span style={{ fontWeight: 600 }}>{fmtDuration(record.entry_time)}</span>
                   </div>
@@ -662,9 +662,9 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
               </div>
 
               {/* Total amount */}
-              <div style={{ background: 'linear-gradient(135deg,#312e81,#4f46e5)', borderRadius: 14, padding: '16px 20px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>TOTAL DUE</div>
-                <div style={{ color: '#fff', fontSize: 32, fontWeight: 900 }}>{currency}{amount.toFixed(2)}</div>
+              <div style={{ background: 'linear-gradient(135deg,#312e81,#4f46e5)', borderRadius: 14, padding: '12px 16px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 600 }}>TOTAL DUE</div>
+                <div style={{ color: '#fff', fontSize: 28, fontWeight: 900 }}>{currency}{amount.toFixed(2)}</div>
               </div>
             </div>
           )}
@@ -677,15 +677,15 @@ export default function ExitForm({ onBack, onSuccess, preloadTicket }) {
               Select a vehicle from the list to process exit.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>
                 Payment Method
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {['CASH', 'UPI', 'CARD'].map(m => (
                   <button key={m} type="button"
                     className={`btn ${payMode === m ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ flex: 1 }} onClick={() => setPayMode(m)}
+                    style={{ flex: 1, padding: '10px 8px', fontSize: 14 }} onClick={() => setPayMode(m)}
                   >
                     {m === 'CASH' ? '💵' : m === 'UPI' ? '📱' : '💳'} {m}
                   </button>

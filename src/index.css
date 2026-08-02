@@ -490,14 +490,7 @@ html, body, #root {
 /* ===================================================================
    WATCHMAN DASHBOARD
    =================================================================== */
-.watchman-home {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
+
 
 .watchman-half {
   flex: 1 !important;
@@ -535,9 +528,10 @@ html, body, #root {
 .watchman-body { flex: 1; display: flex; overflow: hidden; }
 
 .watchman-home {
-  flex: 1; display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
+  flex: 1; 
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .watchman-half {
@@ -990,30 +984,27 @@ tbody td { padding: 14px 16px; color: var(--text-primary); }
     display: none !important; /* Hide occupancy bar on tiny screens */
   }
 
-  /* Watchman half buttons — stack vertically */
-  .watchman-home { grid-template-columns: 1fr !important; }
-  .watchman-half { min-height: 45vh; padding-top: 60px !important; }
+  /* Watchman half buttons — flex correctly */
   .watchman-half-icon { font-size: 64px !important; }
   .watchman-half-label { font-size: 28px !important; }
   .watchman-half-count { top: 12px !important; right: 12px !important; font-size: 12px !important; padding: 4px 12px !important; }
 
-  /* Watchman entry/exit form — stack vertically and scroll as one */
+  /* Watchman entry/exit form — stack vertically but remain unscrollable */
   .watchman-form-body {
     display: flex !important;
     flex-direction: column !important;
-    overflow-y: auto !important;
+    overflow: hidden !important;
   }
   .watchman-form-main {
-    flex: none !important;
-    padding: 16px !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
     border-right: none !important;
-    border-bottom: none !important;
-    overflow: visible !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
   }
   .watchman-form-panel {
     flex: none !important;
-    padding: 16px !important;
-    border-left: none !important;
+    padding: 12px 16px !important;
+    width: 100% !important;
     overflow: visible !important;
   }
   .watchman-form-header { padding: 12px 16px; }
