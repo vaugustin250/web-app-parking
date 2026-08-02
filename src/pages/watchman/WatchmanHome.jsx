@@ -261,8 +261,8 @@ export default function WatchmanHome() {
       {showSignOutConfirm && <SignOutModal />}
 
       {/* Top bar */}
-      <div className="watchman-topbar">
-        <div className="watchman-brand" style={{ display: 'flex', alignItems: 'center' }}><img src="/logo.png" alt="VBills" style={{ height: 100, objectFit: 'contain', transform: 'scale(2.2)', filter: 'brightness(0) invert(1)' }} /></div>
+      <div className="watchman-topbar" style={{ padding: '8px 16px' }}>
+        <div className="watchman-brand" style={{ display: 'flex', alignItems: 'center' }}><img src="/logo.png" alt="VBills" style={{ height: 70, objectFit: 'contain', transform: 'scale(2.2)', filter: 'brightness(0) invert(1)' }} /></div>
         <div className="watchman-occupancy-center" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
             {stats.parked} / {stats.total} slots occupied

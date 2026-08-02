@@ -507,7 +507,8 @@ html, body, #root {
    WATCHMAN LAYOUT — Fullscreen, Touch-Optimized
    =================================================================== */
 .watchman-shell {
-  height: 100vh; display: flex; flex-direction: column;
+  height: 100vh; /* fallback */
+  height: 100dvh; display: flex; flex-direction: column;
   background: var(--bg-base); overflow: hidden;
 }
 
