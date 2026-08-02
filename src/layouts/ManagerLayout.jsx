@@ -9,14 +9,15 @@ export default function ManagerLayout() {
   const zonesAllowed = tenantData?.feature_zones_allowed ?? false
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
-  const initials = profile?.full_name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) ?? 'MG'
+  const displayName = profile?.full_name || profile?.name || 'Manager'
+  const initials = displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
   const MAIN_NAV = [
     { to: '/manager/dashboard', icon: '📊', label: 'Dashboard' },
     { to: '/manager/records', icon: '🚗', label: 'Parking Records' },
     { to: '/manager/reports', icon: '📈', label: 'Reports' },
-    ...(passesAllowed && passesEnabled ? [{ to: '/manager/passes', icon: '🎫', label: 'Parking Passes' }] : []),
-    ...(zonesAllowed ? [{ to: '/manager/zones', icon: '📍', label: 'Zone Management' }] : []),
+    ...(passesAllowed || settings?.feature_passes_enabled ? [{ to: '/manager/passes', icon: '🎫', label: 'Parking Passes' }] : []),
+    ...(zonesAllowed || settings?.zones_enabled ? [{ to: '/manager/zones', icon: '📍', label: 'Zone Management' }] : []),
   ]
 
   const ADMIN_NAV = [
@@ -66,7 +67,7 @@ export default function ManagerLayout() {
         <div className="sidebar-user">
           <div className="sidebar-avatar">{initials}</div>
           <div className="sidebar-user-info">
-            <div className="sidebar-user-name">{profile?.full_name}</div>
+            <div className="sidebar-user-name">{displayName}</div>
             <div className="sidebar-user-role">Manager</div>
           </div>
         </div>
