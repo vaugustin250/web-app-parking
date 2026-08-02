@@ -9,7 +9,7 @@ export default function ManagerLayout() {
   const zonesAllowed = tenantData?.feature_zones_allowed ?? false
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
-  const displayName = profile?.full_name || profile?.name || 'Manager'
+  const displayName = profile?.fullName || profile?.full_name || profile?.name || 'Manager'
   const initials = displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
   const MAIN_NAV = [

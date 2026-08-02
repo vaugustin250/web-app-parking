@@ -43,7 +43,7 @@ export default function WatchmanHome() {
     const exitsCount = await localDb.parking_records.filter(r => r.status === 'EXITED' && r.exit_time >= shiftStart).count()
     
     // Calculate payments locally
-    const payments = await localDb.payments.filter(r => r.settled_at >= shiftStart && r.collected_by === (profile?.name || profile?.full_name)).toArray()
+    const payments = await localDb.payments.filter(r => r.settled_at >= shiftStart && r.collected_by === (profile?.name || profile?.full_name || profile?.fullName)).toArray()
 
     let cash = 0, upi = 0, total = 0
     if (payments) {
@@ -71,7 +71,7 @@ export default function WatchmanHome() {
         <div class="center logo">${settings?.company_name ?? 'VBills'}</div>
         <div class="center bold" style="font-size:14px; margin-bottom:8px">SHIFT REPORT</div>
         <div class="divider"></div>
-        <div class="row"><span class="label">Watchman:</span><span class="bold">${profile?.name || profile?.full_name || 'Watchman'}</span></div>
+        <div class="row"><span class="label">Watchman:</span><span class="bold">${profile?.name || profile?.full_name || profile?.fullName || 'Watchman'}</span></div>
         <div class="row"><span class="label">Login:</span><span>${new Date(shiftStart).toLocaleString('en-IN', { hour12: true, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
         <div class="row"><span class="label">Logout:</span><span>${new Date(now).toLocaleString('en-IN', { hour12: true, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
         <div class="divider"></div>
@@ -107,7 +107,7 @@ export default function WatchmanHome() {
     try {
       const payload = {
         tenant_id: tenantId,
-        watchman_name: profile?.name || profile?.full_name || 'Watchman',
+        watchman_name: profile?.name || profile?.full_name || profile?.fullName || 'Watchman',
         start_time: shiftStart,
         end_time: now,
         vehicles_in: shiftStats.entries,
@@ -279,19 +279,9 @@ export default function WatchmanHome() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{(profile?.name || profile?.full_name || 'Watchman').split(' ')[0]}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{(profile?.name || profile?.full_name || profile?.fullName || 'Watchman').split(' ')[0]}</div>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>Watchman</div>
           </div>
-          <button onClick={async () => {
-            if (window.confirm('Reset offline data?')) {
-              const Dexie = (await import('dexie')).default;
-              await Dexie.delete('ParkEaseDB');
-              localStorage.clear();
-              window.location.reload();
-            }
-          }} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: 8, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>
-            🔄 Reset
-          </button>
           <button onClick={handleSignOut} style={{
             background: 'rgba(220,38,38,0.2)', border: '1px solid rgba(220,38,38,0.4)',
             color: '#fca5a5', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer'

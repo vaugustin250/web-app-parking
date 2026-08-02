@@ -50,6 +50,9 @@ export const SyncEngine = {
           } else if (item.action === 'UPDATE_PARKING_EXIT' || item.action === 'UPDATE_PARKING') {
             await api.post('/api/parking/exit', item.payload);
             success = true;
+          } else if (item.action === 'INSERT_SHIFT_REPORT') {
+            await api.post('/api/reports/shift', item.payload);
+            success = true;
           } else {
             // Silently discard unsupported actions (like INSERT_PAYMENT, INSERT_AUDIT_LOG)
             // so they don't permanently block the sync queue.

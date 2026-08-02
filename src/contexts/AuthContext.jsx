@@ -84,10 +84,10 @@ export function AuthProvider({ children }) {
   const isSuperAdmin = role === 'SUPER_ADMIN'
 
   // Derive a tenantData-like object from settings for feature flags
-  // (passes + zones visibility in sidebar)
+  // (passes + zones visibility in sidebar and settings page)
   const effectiveTenantData = tenantData || {
-    feature_passes_allowed: settings?.feature_passes_enabled ?? true,
-    feature_zones_allowed: settings?.zones_enabled ?? true,
+    feature_passes_allowed: true,
+    feature_zones_allowed: true,
   }
 
   return (

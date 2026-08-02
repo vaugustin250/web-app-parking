@@ -26,71 +26,70 @@ function defaultRateRules(s) {
   }
 }
 
-// ── Simple Rate Builder ────────────────────────────────
-function SimpleRateBuilder({ vehicleType, rules, currency, onChange }) {
-  // Ensure we have the new object structure. If it's an old array, fallback.
-  const r = Array.isArray(rules) ? defaultRules(20, 10) : rules
+// ── Tiered Rate Builder ────────────────────────────────
+function TieredRateBuilder({ vehicleType, rules, currency, onChange }) {
+  // Backwards compatibility: if rules is an object (from SimpleRateBuilder), convert it to a tier array
+  const tiers = Array.isArray(rules) ? rules : [
+    { type: 'FLAT', hours: rules?.base_hours || 1, rate: rules?.base_rate || 20 },
+    { type: 'HOURLY', rate: rules?.hourly_rate || 10, max_cap: rules?.daily_max || 0 }
+  ]
+  const entryFee = (!Array.isArray(rules) && rules?.entry_fee) ? rules.entry_fee : 0
 
-  function update(field, val) {
-    onChange({ ...r, [field]: val })
+  function updateTier(index, field, val) {
+    const newTiers = [...tiers]
+    newTiers[index] = { ...newTiers[index], [field]: val }
+    onChange(newTiers)
+  }
+
+  function addTier() {
+    onChange([...tiers, { type: 'HOURLY', rate: 10, max_cap: 0 }])
+  }
+  
+  function removeTier(index) {
+    onChange(tiers.filter((_, i) => i !== index))
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      
-      {/* Base Rate */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Base Fee (First X hours)</span>
-          </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
-            <input className="form-input" type="number" min={0} value={r.base_rate} onChange={e => update('base_rate', parseFloat(e.target.value) || 0)} style={{ flex: 1, fontSize: 16, fontWeight: 700 }} />
+      {tiers.map((tier, i) => (
+        <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'var(--bg-primary)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+          <select className="form-select" value={tier.type} onChange={e => updateTier(i, 'type', e.target.value)} style={{ width: 130 }}>
+            <option value="FLAT">Flat Fee</option>
+            <option value="HOURLY">Per Hour</option>
+          </select>
+          
+          {tier.type === 'FLAT' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>for first</span>
+              <input type="number" min={0.5} step={0.5} className="form-input" value={tier.hours ?? 1} onChange={e => updateTier(i, 'hours', parseFloat(e.target.value) || 1)} style={{ width: 70 }} />
+              <span>hrs</span>
+            </div>
+          )}
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{currency}</span>
+            <input type="number" min={0} className="form-input" value={tier.rate ?? 0} onChange={e => updateTier(i, 'rate', parseFloat(e.target.value) || 0)} style={{ width: 90, fontWeight: 700 }} />
           </div>
-        </div>
-        
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Base Hours</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input className="form-input" type="number" min={0.5} step={0.5} value={r.base_hours} onChange={e => update('base_hours', parseFloat(e.target.value) || 1)} style={{ flex: 1 }} />
-            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>hours</span>
-          </div>
-        </div>
-      </div>
+          
+          {tier.type === 'HOURLY' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Max Cap:</span>
+              <input type="number" min={0} className="form-input" value={tier.max_cap ?? 0} onChange={e => updateTier(i, 'max_cap', parseFloat(e.target.value) || 0)} style={{ width: 80 }} placeholder="0 = No limit" />
+            </div>
+          )}
 
-      {/* Hourly & Daily */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Per Hour Fee (After base hours)</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
-            <input className="form-input" type="number" min={0} value={r.hourly_rate} onChange={e => update('hourly_rate', parseFloat(e.target.value) || 0)} style={{ flex: 1, fontSize: 16, fontWeight: 700 }} />
-            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>/ hr</span>
-          </div>
+          <button type="button" onClick={() => removeTier(i)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 8 }}>✕</button>
         </div>
-        
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Per Day Max Cap <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(0 = no limit)</span></label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
-            <input className="form-input" type="number" min={0} value={r.daily_max} onChange={e => update('daily_max', parseFloat(e.target.value) || 0)} style={{ flex: 1, fontSize: 16, fontWeight: 700 }} />
-            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>/ day</span>
-          </div>
-        </div>
+      ))}
+      
+      <div>
+        <button type="button" className="btn btn-secondary" onClick={addTier} style={{ fontSize: 13, padding: '6px 12px' }}>+ Add Tier</button>
       </div>
       
-      {/* Optional Upfront Entry Fee */}
-      <div style={{ paddingTop: 16, borderTop: '1px solid var(--border-color)' }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Upfront Entry Fee <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional fixed fee collected at entry)</span></label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>{currency}</span>
-            <input className="form-input" type="number" min={0} value={r.entry_fee} onChange={e => update('entry_fee', parseFloat(e.target.value) || 0)} style={{ width: 120, fontSize: 16, fontWeight: 700 }} />
-          </div>
-        </div>
-      </div>
-
+      {/* Optional Upfront Entry Fee is handled at the root settings level now, 
+          but if they want it per-vehicle type, we can add it here.
+          For simplicity, we will omit entry_fee here if they are using tiers, 
+          and assume FLAT tier handles base entry cost. */}
     </div>
   )
 }
@@ -230,7 +229,7 @@ export default function Settings() {
                 <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, color: 'var(--text-primary)' }}>
                   {activeRateTab === '2-Wheeler' ? '🛵' : activeRateTab === 'Heavy Vehicle' ? '🚌' : activeRateTab === 'Auto Rickshaw' ? '🛺' : '🚗'} {activeRateTab} Pricing
                 </div>
-                <SimpleRateBuilder
+                <TieredRateBuilder
                   vehicleType={activeRateTab}
                   rules={rateRules[activeRateTab] ?? defaultRules(20, 10)}
                   currency={form.currency_symbol}
