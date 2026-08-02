@@ -603,7 +603,7 @@ export default function EntryForm({ onBack, onSuccess }) {
                 </button>
               </div>
               {showKeypad && (
-                <div style={{ flex: 1, display: 'flex', overflow: 'hidden', marginTop: 4 }}>
+                <div style={{ flex: 1, display: 'flex', minHeight: 320, marginTop: 4 }}>
                   <PlateKeypad value={vehicleNo} onChange={v => { setVehicleNo(v); handleVehicleNoChange(v); }} onAccept={() => setShowKeypad(false)} />
                 </div>
               )}
