@@ -85,9 +85,9 @@ export function AuthProvider({ children }) {
 
   // Derive a tenantData-like object from settings for feature flags
   // (passes + zones visibility in sidebar and settings page)
-  const effectiveTenantData = tenantData || {
-    feature_passes_allowed: true,
-    feature_zones_allowed: true,
+  const effectiveTenantData = user?.tenantData || tenantData || {
+    feature_passes_allowed: false,
+    feature_zones_allowed: false,
   }
 
   return (
