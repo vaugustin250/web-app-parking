@@ -120,6 +120,27 @@ export const SyncEngine = {
            status: 'PARKED'
          });
       }
+
+      // Also pull passes and zones if they exist
+      try {
+        const passesRes = await api.get('/api/passes');
+        if (passesRes.data && passesRes.data.passes) {
+          await localDb.parking_passes.clear();
+          await localDb.parking_passes.bulkPut(passesRes.data.passes);
+        }
+      } catch (e) {
+        // May fail if passes feature is disabled, ignore safely
+      }
+
+      try {
+        const zonesRes = await api.get('/api/zones');
+        if (zonesRes.data && zonesRes.data.zones) {
+          await localDb.parking_zones.clear();
+          await localDb.parking_zones.bulkPut(zonesRes.data.zones);
+        }
+      } catch (e) {
+        // May fail if zones feature is disabled, ignore safely
+      }
     } catch (e) {
       console.error('Failed to pull fresh data', e);
     }

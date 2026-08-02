@@ -164,7 +164,7 @@ function SuccessModal({ ticket, vehicleNo, vehicleType, zoneName, passInfo, onPr
         {zoneName && <div style={{ fontSize: 13, color: '#4f46e5', fontWeight: 600, marginBottom: 8 }}>📍 Zone: {zoneName}</div>}
         {passInfo && (
           <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 10, padding: '8px 12px', marginBottom: 16, fontSize: 13, fontWeight: 700, color: '#065f46' }}>
-            🎫 PASS HOLDER — Expires {passInfo.expiry}
+            🎫 PASS HOLDER — Expires: {passInfo.expiry} {passInfo.entriesLeft !== 'Unlimited' ? `(${passInfo.entriesLeft} entries left)` : ''}
           </div>
         )}
         <div style={{ display: 'flex', gap: 12 }}>
@@ -435,6 +435,18 @@ export default function EntryForm({ onBack, onSuccess }) {
           ticket_no: ticket,
           used_at: entryTime
         })
+        
+        // Increment local pass usage so offline checks work correctly
+        try {
+          const pass = await localDb.parking_passes.get(passInfo.id);
+          if (pass) {
+            await localDb.parking_passes.update(passInfo.id, {
+              used_entries: (pass.used_entries || 0) + 1
+            });
+          }
+        } catch (e) {
+          console.error('Failed to increment local pass usage', e);
+        }
       }
 
       // Auto-print slip immediately — no manual button
@@ -561,7 +573,10 @@ export default function EntryForm({ onBack, onSuccess }) {
               <div style={{ fontSize: 24 }}>🎫</div>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 13, color: '#065f46' }}>✅ PARKING PASS ACTIVE</div>
-                <div style={{ fontSize: 12, color: '#047857' }}>{passInfo.pass_type} Pass · {passInfo.holder_name} · Expires in <b>{passInfo.daysLeft} days</b></div>
+                <div style={{ fontSize: 12, color: '#047857' }}>
+                  {passInfo.pass_type} Pass · {passInfo.holder_name} · Expires in <b>{passInfo.daysLeft} days</b>
+                  {passInfo.entriesLeft !== 'Unlimited' && <span> · <b>{passInfo.entriesLeft} entries left</b></span>}
+                </div>
               </div>
             </div>
           )}
