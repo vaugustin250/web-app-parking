@@ -43,7 +43,7 @@ export default function WatchmanHome() {
     const exitsCount = await localDb.parking_records.filter(r => r.status === 'EXITED' && r.exit_time >= shiftStart).count()
     
     // Calculate payments locally
-    const payments = await localDb.payments.filter(r => r.settled_at >= shiftStart && r.collected_by === profile?.full_name).toArray()
+    const payments = await localDb.payments.filter(r => r.settled_at >= shiftStart && r.collected_by === (profile?.name || profile?.full_name)).toArray()
 
     let cash = 0, upi = 0, total = 0
     if (payments) {
@@ -71,7 +71,7 @@ export default function WatchmanHome() {
         <div class="center logo">${settings?.company_name ?? 'VBills'}</div>
         <div class="center bold" style="font-size:14px; margin-bottom:8px">SHIFT REPORT</div>
         <div class="divider"></div>
-        <div class="row"><span class="label">Watchman:</span><span class="bold">${profile?.full_name}</span></div>
+        <div class="row"><span class="label">Watchman:</span><span class="bold">${profile?.name || profile?.full_name || 'Watchman'}</span></div>
         <div class="row"><span class="label">Login:</span><span>${new Date(shiftStart).toLocaleString('en-IN', { hour12: true, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
         <div class="row"><span class="label">Logout:</span><span>${new Date(now).toLocaleString('en-IN', { hour12: true, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
         <div class="divider"></div>
@@ -107,7 +107,7 @@ export default function WatchmanHome() {
     try {
       const payload = {
         tenant_id: tenantId,
-        watchman_name: profile?.full_name,
+        watchman_name: profile?.name || profile?.full_name || 'Watchman',
         start_time: shiftStart,
         end_time: now,
         vehicles_in: shiftStats.entries,
@@ -279,7 +279,7 @@ export default function WatchmanHome() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{profile?.full_name?.split(' ')[0]}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{(profile?.name || profile?.full_name || 'Watchman').split(' ')[0]}</div>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>Watchman</div>
           </div>
           <button onClick={async () => {
