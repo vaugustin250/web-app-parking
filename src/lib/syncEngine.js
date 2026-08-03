@@ -35,6 +35,7 @@ export const SyncEngine = {
       const queue = await localDb.sync_queue.toArray();
       if (queue.length === 0) {
         this.isSyncing = false;
+        await this.pullFreshData();
         return;
       }
 
