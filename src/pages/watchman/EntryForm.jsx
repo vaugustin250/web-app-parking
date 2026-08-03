@@ -250,7 +250,11 @@ export default function EntryForm({ onBack, onSuccess }) {
     if (data?.length) {
       const counts = {}
       await Promise.all(data.map(async z => {
-        const count = await localDb.parking_records.filter(r => r.tenant_id === tenantId && r.zone_id === z.id && r.status === 'PARKED').count()
+        const count = await localDb.parking_records.filter(r => 
+          r.tenant_id === tenantId && 
+          (r.zone_id === z.id || r.zone === z.id) && 
+          r.status === 'PARKED'
+        ).count()
         counts[z.id] = count ?? 0
       }))
       setZoneStats(counts)
@@ -386,6 +390,27 @@ export default function EntryForm({ onBack, onSuccess }) {
       const ticket = generateTicket()
       const entryTime = new Date().toISOString()
       const selectedZone = zones.find(z => z.id === zoneId)
+      let assignedSlot = slotNo || null
+      if (selectedZone && selectedZone.slot_diagram_enabled && !assignedSlot) {
+        const usedSlots = await localDb.parking_records
+          .filter(r => r.tenant_id === tenantId && r.status === 'PARKED' && (r.zone_id === selectedZone.id || r.zone === selectedZone.id))
+          .toArray()
+        const occupiedSlotNos = new Set(usedSlots.map(r => r.slot_no || r.slot_number).filter(Boolean))
+        
+        const rows = selectedZone.rows_count || 4
+        const cols = selectedZone.cols_count || 5
+        const COL_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        
+        outer: for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const label = `${COL_LABELS[r]}-${c + 1}`
+            if (!occupiedSlotNos.has(label)) {
+              assignedSlot = label
+              break outer
+            }
+          }
+        }
+      }
 
       const entryPayload = {
         id: crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); }),
@@ -395,7 +420,7 @@ export default function EntryForm({ onBack, onSuccess }) {
         vehicle_type: vehicleType,
         driver_name: driverName || null,
         driver_phone: driverPhone || null,
-        slot_no: slotNo || null,
+        slot_no: assignedSlot,
         zone_id: zoneId || null,
         pass_id: passInfo?.id || null,
         notes: notes || null,
@@ -452,7 +477,7 @@ export default function EntryForm({ onBack, onSuccess }) {
       // Auto-print slip immediately — no manual button
       printEntrySlip({
         ticket, vehicleNo: num, vehicleType,
-        slotNo, zone: selectedZone ?? null,
+        slotNo: assignedSlot, zone: selectedZone ?? null,
         entryTime,
         companyName: settings?.company_name ?? 'VBills',
         address: settings?.address ?? '',
